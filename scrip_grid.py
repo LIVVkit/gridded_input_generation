@@ -41,7 +41,7 @@ def parse_args(args=None):
 
 
 def main(args):
-    #FIXME: Pick projection based on input file!
+    # FIXME: Pick projection based on input file!
     proj_epsg3413, proj_eigen_gl04c = projections.greenland()
     if args.projection == 'epsg':
         proj = proj_epsg3413
@@ -49,6 +49,8 @@ def main(args):
     elif args.projection == 'bamber':
         proj = proj_eigen_gl04c
         scrip_title = "CISM Bamber Grid"
+    else:
+        raise ValueError('Unkown projection!')
 
     # load the dataset
     nc_base = Dataset(args.input, 'r')
@@ -123,7 +125,7 @@ def main(args):
     nc_scrip.source = 'Joseph H. Kennedy, ORNL'
 
     scrip = projections.DataGrid()
-    scrip.dims = nc_scrip.createVariable('grid_dims', 'i4', ('grid_rank'))
+    scrip.dims = nc_scrip.createVariable('grid_dims', 'i4', ('grid_rank',))
     # NOTE: SCRIP is a Fortran program and as such assumes data is stored in column-major order.
     #       Because (1) netCDF stores data 'C-style' with row-major order and (2) the scrip grid
     #       formate uses flattened arrays, it's easiest to flatten the data 'C-style', which is the
@@ -141,24 +143,24 @@ def main(args):
     # NOTE: It would also be prudent to note that data was dumped in the F-style format, so that can 
     #       be accounted for when reading in this data.
 
-    scrip.imask = nc_scrip.createVariable('grid_imask', 'i4', ('grid_size'))
+    scrip.imask = nc_scrip.createVariable('grid_imask', 'i4', ('grid_size',))
     scrip.imask[:] = np.ones(base.N)
     scrip.imask.units = 'unitless'
 
-    scrip.center_lat = nc_scrip.createVariable('grid_center_lat', 'f4', ('grid_size'))
-    scrip.center_lat[:] = base.lat_grid[:,:].flatten(order='C')
+    scrip.center_lat = nc_scrip.createVariable('grid_center_lat', 'f4', ('grid_size',))
+    scrip.center_lat[:] = base.lat_grid[:, :].flatten(order='C')
     scrip.center_lat.setncattr('units', 'degrees')
 
-    scrip.center_lon = nc_scrip.createVariable('grid_center_lon', 'f4', ('grid_size'))
-    scrip.center_lon[:] = base.lon_grid[:,:].flatten(order='C')
+    scrip.center_lon = nc_scrip.createVariable('grid_center_lon', 'f4', ('grid_size',))
+    scrip.center_lon[:] = base.lon_grid[:, :].flatten(order='C')
     scrip.center_lon.setncattr('units', 'degrees')
 
     scrip.corner_lat = nc_scrip.createVariable('grid_corner_lat', 'f4', ('grid_size', 'grid_corners',))
-    scrip.corner_lat[:,:] = base.corner_lat[:,:]
+    scrip.corner_lat[:, :] = base.corner_lat[:, :]
     scrip.corner_lat.units = 'degrees'
 
     scrip.corner_lon = nc_scrip.createVariable('grid_corner_lon', 'f4', ('grid_size', 'grid_corners',))
-    scrip.corner_lon[:,:] = base.corner_lon[:,:]
+    scrip.corner_lon[:, :] = base.corner_lon[:, :]
     scrip.corner_lon.units = 'degrees'
 
     scrip.area = nc_scrip.createVariable('grid_area', 'f4', ('grid_size',))

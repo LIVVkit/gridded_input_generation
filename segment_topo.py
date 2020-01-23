@@ -140,22 +140,22 @@ def main(args):
     plt.rc('text', usetex=True)
     plt.rc('font', family='serif')
    
-    ax1.imshow(topg, cmap='spectral', interpolation='nearest')
+    ax1.imshow(topg, cmap='Spectral', interpolation='nearest')
     ax1.set_title('Topography')
 
-    ax2.imshow(islands, cmap='spectral', interpolation='nearest')
+    ax2.imshow(islands, cmap='Spectral', interpolation='nearest')
     ax2.set_title('Shallow regions')
     
-    ax3.imshow(labeled, cmap='spectral', interpolation='nearest')
+    ax3.imshow(labeled, cmap='Spectral', interpolation='nearest')
     ax3.set_title('Labeled regions')
     
-    ax4.imshow(ice, cmap='spectral', interpolation='nearest')
+    ax4.imshow(ice, cmap='Spectral', interpolation='nearest')
     ax4.set_title('Ice thickness')
     
-    ax5.imshow(mask, cmap='spectral', interpolation='nearest')
+    ax5.imshow(mask, cmap='Spectral', interpolation='nearest')
     ax5.set_title('Mask')
 
-    ax6.imshow(mask, cmap='spectral', interpolation='nearest')
+    ax6.imshow(mask, cmap='Spectral', interpolation='nearest')
     ax6.autoscale(False)
     ax6.plot(gl_x, gl_y, '-ro')
     ax6.plot(ei_x, ei_y, '-bx')

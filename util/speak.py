@@ -12,14 +12,15 @@ from __future__ import absolute_import, division, print_function, unicode_litera
 
 import sys
 
-def notquiet( args, words ) :
-    """Print statment if no quiet option set.
+
+def notquiet(args, words):
+    """Print statement if no quiet option set.
 
     This will print a statement as long as the quiet option was not passed.
 
     Parameters
     ----------
-    args : list
+    args : NameSpace
         List of parsed arguments. args.quiet should be a bool. 
     words : str
         The string to print.
@@ -33,17 +34,18 @@ def notquiet( args, words ) :
     >>> notquiet(args, "Will print this.")
     Will print this.
     """
-    if not args.quiet :
-        print( words )
+    if not args.quiet:
+        print(words)
 
-def verbose( args, words ) :
-    """Print statment if verbose option set.
+
+def verbose(args, words):
+    """Print statement if verbose option set.
 
     This will print a statement when the verbose option was passed.
 
     Parameters
     ----------
-    args : list
+    args : NameSpace
         List of parsed arguments. args.verbose should be a bool. 
     words : str
         The string to print.
@@ -58,11 +60,12 @@ def verbose( args, words ) :
     >>> notquiet(args, "But not this.")
     
     """
-    if args.verbose :
-        print( words )
+    if args.verbose:
+        print(words)
+
 
 def progress(args, now, last, width=60, char='=', indent=4):
-    if not args.quiet :
+    if not args.quiet:
         if now == last:
             sys.stdout.write('\r'+' '*indent+'[{line:{length}}] {percent:3.0f}%\n'.format(
                 line=char*width, percent=100., length=width))

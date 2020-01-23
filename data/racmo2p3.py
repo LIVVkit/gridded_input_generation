@@ -18,7 +18,7 @@ The data uses the ESPG:3413 projection:
     * Latitude of projection origin = 90 degrees
     * Central meridian = -45 degrees
     * false eastings = 0
-    * flase northings = 0
+    * false northings = 0
 
 
 References

@@ -43,13 +43,13 @@ class DataGrid():
 
 
 def grid_center_latlons(nc_base, base, proj, proj_var_name):
-    base.lon_grid = nc_base.createVariable('lon', 'f4', ('y1', 'x1',))
+    base.lon_grid = nc_base.createVariable('lon', 'f4', ('y', 'x',))
     base.lon_grid.long_name = 'grid center longitude'
     base.lon_grid.standard_name = 'longitude'
     base.lon_grid.units = 'degrees_east'
     base.lon_grid.grid_mapping = proj_var_name
 
-    base.lat_grid = nc_base.createVariable('lat', 'f4', ('y1', 'x1',))
+    base.lat_grid = nc_base.createVariable('lat', 'f4', ('y', 'x',))
     base.lat_grid.long_name = 'grid center latitude'
     base.lat_grid.standard_name = 'latitude'
     base.lat_grid.units = 'degrees_north'
@@ -109,7 +109,10 @@ def greenland():
 
     # NOTE: Bamber projection appears to not actually have any fasle northings or eastings.
     # proj_eigen_gl04c = pyproj.Proj('+proj=stere +lat_ts=71.0 +lat_0=90 +lon_0=321.0 +k_0=1.0 +x_0=800000.0 +y_0=3400000.0 +geoidgrids='+path_bamber+'/egm08_25.gtx')
-    proj_eigen_gl04c = pyproj.Proj('+proj=stere +lat_ts=71.0 +lat_0=90 +lon_0=321.0 +k_0=1.0 +geoidgrids='+path_egm08)
+    proj_eigen_gl04c = pyproj.Proj('+proj=stere +lat_ts=71.0 +lat_0=90 +lon_0=321.0 +k_0=1.0')
+
+    # NOTE: EPSG:32624 (WGS84 / UTM zone 24N)
+    # proj_epsg32624 = pyproj.Proj('+proj=utm +zone=24 +datum=WGS84 +units=m +no_defs')
 
     return proj_epsg3413, proj_eigen_gl04c
 
