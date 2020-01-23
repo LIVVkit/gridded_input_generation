@@ -46,7 +46,7 @@ input_files = [
 
 for _file in input_files:
     if not os.path.exists(_file):
-        print("FILE NOT FOUND: " + _file)
+        print(("FILE NOT FOUND: " + _file))
         all_found = False
 
 if not all_found:
@@ -69,7 +69,7 @@ nco.ncks(
     output=f_1km_out,
     options=["-x", "-v", "acab_alb,artm_alb,dzdt"],
 )
-print("\nmake new grid " + f_1km_out)
+print(("\nmake new grid " + f_1km_out))
 nc_new = ncfunc.get_nc_file(f_1km_out, "r+")
 new = projections.DataGrid()
 new.y = nc_new.variables["y1"]
@@ -193,8 +193,8 @@ nc_new.variables["thk"].reference = (
 )
 nc_new.variables["thk"].comments = (
     "Origionally from the BEedmap2 dataset, but the water portion of Lake "
-"Vostok has been filled with ice and the peripheral islands have been "
-"removed so ice thickness only represents the main ice sheet."
+    "Vostok has been filled with ice and the peripheral islands have been "
+    "removed so ice thickness only represents the main ice sheet."
 )
 
 # FIXME nc_new.variables['thk'].missing_value = FIXME
@@ -212,13 +212,15 @@ with np.errstate(invalid="ignore"):  # NaNs are stupid.
         nc_berr.variables["thkerr"][::-1, :], fill_value=-9999.0
     )
 print("  Interpolate thkerr")
-berr.points = zip(berr.y_grid.flatten(), berr.x_grid.flatten())
+berr.points = list(zip(berr.y_grid.flatten(), berr.x_grid.flatten()))
 berr_to_new = scipy.interpolate.NearestNDInterpolator(
     berr.points, berr_thkerr.flatten()
 )
 new_berr = np.zeros(new.dims)
 for ii in range(0, new.nx):
-    new_berr[:, ii] = berr_to_new(zip(new.y_grid[:, ii], new.x_grid[:, ii]))
+    new_berr[:, ii] = berr_to_new(
+        list(zip(new.y_grid[:, ii], new.x_grid[:, ii]))
+    )
 
 nc_new.createVariable("thkerr", "f4", ("time", "y1", "x1",))
 if FILL:
@@ -248,7 +250,7 @@ print("\nHeat Flux")
 heat_flux = np.loadtxt(heat_flux_file)
 print("  Interpolate bheatflx")
 new_bheatflx = scipy.interpolate.griddata(
-    zip(heat_flux[:, 1], heat_flux[:, 0]),
+    list(zip(heat_flux[:, 1], heat_flux[:, 0])),
     heat_flux[:, 2],
     (new.y_grid, new.x_grid),
     method="nearest",
@@ -278,7 +280,7 @@ print("\nHeat Flux Uncertainty")
 heat_flux_err = np.loadtxt(heat_flux_unc_file)
 print("  Interpolate bheatflxerr")
 new_bheatflxerr = scipy.interpolate.griddata(
-    zip(heat_flux_err[:, 1], heat_flux_err[:, 0]),
+    list(zip(heat_flux_err[:, 1], heat_flux_err[:, 0])),
     heat_flux_err[:, 2],
     (new.y_grid, new.x_grid),
     method="nearest",
@@ -510,7 +512,7 @@ cryosat.txgma, cryosat.tygma = pyproj.transform(
 )
 print("  Interpolate")
 dhdt_interp = scipy.interpolate.griddata(
-    zip(cryosat.tygma, cryosat.txgma),
+    list(zip(cryosat.tygma, cryosat.txgma)),
     cryosat.zgma.flatten(),
     (new.y_grid, new.x_grid),
     method="linear",
