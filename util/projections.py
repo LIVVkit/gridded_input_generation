@@ -42,14 +42,14 @@ class DataGrid():
         self.dx = self.x[1]-self.x[0]
 
 
-def grid_center_latlons(nc_base, base, proj, proj_var_name):
-    base.lon_grid = nc_base.createVariable('lon', 'f4', ('y', 'x',))
+def grid_center_latlons(nc_base, base, proj, proj_var_name, cvars=("y", "x")):
+    base.lon_grid = nc_base.createVariable('lon', 'f4', cvars)
     base.lon_grid.long_name = 'grid center longitude'
     base.lon_grid.standard_name = 'longitude'
     base.lon_grid.units = 'degrees_east'
     base.lon_grid.grid_mapping = proj_var_name
 
-    base.lat_grid = nc_base.createVariable('lat', 'f4', ('y', 'x',))
+    base.lat_grid = nc_base.createVariable('lat', 'f4', cvars)
     base.lat_grid.long_name = 'grid center latitude'
     base.lat_grid.standard_name = 'latitude'
     base.lat_grid.units = 'degrees_north'
