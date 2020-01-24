@@ -24,10 +24,21 @@ from util import finalize
 f_1km_out = "ncs/antarctica_1km_" + datetime.now().strftime("%Y_%m_%d") + ".nc"
 f_1km_in = "ncs/antarctica_1km_2017_05_03.nc"
 subshelf = "data/Rignot-subShelfMeltRates/Ant_MeltingRate.flipNY.newAxes.nc"
-bedmap = "data/BISICLES/Antarctica-1km.BISICLES.CISM-style.nc"
-bedmap_uncert = (
-    "data/5km-res-Bedmap2-ThkError/Antarctica-Bedmap2-thicknessUncertainty.nc"
-)
+bed_opt = "BedMachine"
+if bed_opt == "BedMachine":
+    bedmap = (
+        "data/500m.MassConsBed.AIS.Morlighem.2019/"
+        "BedMachineAntarctica_2019-11-05_v01.nc"
+    )
+    bedmap_uncert = bedmap
+
+else:
+    bedmap = "data/BISICLES/Antarctica-1km.BISICLES.CISM-style.nc"
+    bedmap_uncert = (
+        "data/5km-res-Bedmap2-ThkError/"
+        "Antarctica-Bedmap2-thicknessUncertainty.nc"
+    )
+
 heat_flux_file = "data/Martos-AIS-heatFlux/Antarctic_GHF.xyz"
 heat_flux_unc_file = "data/Martos-AIS-heatFlux/Antarctic_GHF_uncertainty.xyz"
 cryosat_file = "data/Cryosat2/CS2_dzdt.nc"
@@ -46,8 +57,10 @@ input_files = [
 
 for _file in input_files:
     if not os.path.exists(_file):
-        print(("FILE NOT FOUND: " + _file))
+        print("FILE NOT FOUND: " + _file)
         all_found = False
+    else:
+        print("  FILE FOUND: " + _file)
 
 if not all_found:
     sys.exit(1)
@@ -154,20 +167,49 @@ nc_new.variables["subm_ss"].comments = (
 # FIXME nc_new.variables['subm_ss'].missing_value = FIXME
 print("\nBedmap2")
 # FIXME: Do the cleanup myself from bedmap2 data.
+_bedx = "x"
+_bedy = "y"
+_thck = "thickness"
+
 nc_bike = ncfunc.get_nc_file(bedmap, "r")
 bike = projections.DataGrid()
-bike.y = nc_bike.variables["y1"]
-bike.x = nc_bike.variables["x1"]
+bike.y = nc_bike.variables[_bedy]
+bike.x = nc_bike.variables[_bedx]
 bike.ny = bike.y[:].shape[0]
 bike.nx = bike.x[:].shape[0]
 bike.make_grid()
+
+def bedmachine_interp(x, y, data, new):
+    if y[1] - y[0] < 0:
+        _yslice = slice(None, None, -1)
+    else:
+        _yslice = slice(None, None, None)
+
+    if x[1] - x[0] < 0:
+        _xslice = slice(None, None, -1)
+    else:
+        _xslice = slice(None, None, None)
+
+    to_new = scipy.interpolate.RectBivariateSpline(
+        y[_yslice], x[_xslice], data[_yslice, _xslice], kx=1, ky=1, s=0
+    )
+    new_data = np.zeros(new.dims)
+
+    for ii in range(0, new.nx):
+        new_data[:, ii] = to_new.ev(new.y_grid[:, ii], new.x_grid[:, ii])
+    new_data = new_data[_yslice, _xslice]
+    return new_data
+
 print("  Interpolate thk")
-bike_to_new = scipy.interpolate.RectBivariateSpline(
-    bike.y[:], bike.x[:], nc_bike.variables["thk"][:, :], kx=1, ky=1, s=0
-)
-new_bike = np.zeros(new.dims)
-for ii in range(0, new.nx):
-    new_bike[:, ii] = bike_to_new.ev(new.y_grid[:, ii], new.x_grid[:, ii])
+new_bike = bedmachine_interp(bike.x, bike.y, nc_bike.variables[_thck], new)
+
+# bike_to_new = scipy.interpolate.RectBivariateSpline(
+#     bike.y[::-1], bike.x[:], nc_bike.variables[_thck][::-1, :], kx=1, ky=1, s=0
+# )
+# new_bike = np.zeros(new.dims)
+# for ii in range(0, new.nx):
+#     new_bike[:, ii] = bike_to_new.ev(new.y_grid[:, ii], new.x_grid[:, ii])
+# new_bike = new_bike[::-1, :]
 
 if FILL:
     new_bike = np.ma.masked_where(new_bike < 11.0, new_bike)
@@ -200,28 +242,30 @@ nc_new.variables["thk"].comments = (
 # FIXME nc_new.variables['thk'].missing_value = FIXME
 print("\nBedmap2 Uncertainty")
 nc_berr = ncfunc.get_nc_file(bedmap_uncert, "r")
+_berrvar = "errbed"
 berr = projections.DataGrid()
-berr.y = nc_berr.variables["y1"][::-1] * 1000.0  # km to m
-berr.x = nc_berr.variables["x1"][:] * 1000.0  # km to m
+berr.y = nc_berr.variables[_bedy][::-1] * 1000.0  # km to m
+berr.x = nc_berr.variables[_bedx][:] * 1000.0  # km to m
 berr.ny = berr.y.shape[0]
 berr.nx = berr.x.shape[0]
 berr.make_grid()
 
 with np.errstate(invalid="ignore"):  # NaNs are stupid.
     berr_thkerr = np.ma.fix_invalid(
-        nc_berr.variables["thkerr"][::-1, :], fill_value=-9999.0
+        nc_berr.variables[_berrvar][::-1, :], fill_value=-9999.0
     )
 print("  Interpolate thkerr")
-berr.points = list(zip(berr.y_grid.flatten(), berr.x_grid.flatten()))
-berr_to_new = scipy.interpolate.NearestNDInterpolator(
-    berr.points, berr_thkerr.flatten()
-)
-new_berr = np.zeros(new.dims)
-for ii in range(0, new.nx):
-    new_berr[:, ii] = berr_to_new(
-        list(zip(new.y_grid[:, ii], new.x_grid[:, ii]))
-    )
-
+new_berr = bedmachine_interp(berr.y, berr.x, nc_berr[_berrvar], new)
+# berr.points = list(zip(berr.y_grid.flatten(), berr.x_grid.flatten()))
+# berr_to_new = scipy.interpolate.NearestNDInterpolator(
+#     berr.points, berr_thkerr.flatten()
+# )
+# new_berr = np.zeros(new.dims)
+# for ii in range(0, new.nx):
+#     new_berr[:, ii] = berr_to_new(
+#         list(zip(new.y_grid[:, ii], new.x_grid[:, ii]))
+#     )
+#
 nc_new.createVariable("thkerr", "f4", ("time", "y1", "x1",))
 if FILL:
     new_berr = np.ma.masked_values(new_berr, -9999.0)
