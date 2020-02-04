@@ -2,12 +2,14 @@
 # -*- coding: utf-8 -*-
 """Build CISM style input file from multiple sources using xarray.
 """
+import os
 from datetime import datetime
 import numpy as np
+import scipy
 import scipy.interpolate
-import matplotlib.pyplot as plt
 import xarray as xr
 from nco import Nco
+from util import projections
 
 __author__ = "Michael Kelleher"
 
@@ -40,8 +42,8 @@ def rect_bivariate_interp(xin, yin, data, xout, yout):
     x_grid, y_grid = np.meshgrid(xout, yout)
     new_data = np.zeros(x_grid.shape)
 
-    for ii in range(0, y_grid.shape[1]):
-        new_data[:, ii] = to_new.ev(y_grid[:, ii], x_grid[:, ii])
+    for _ii in range(0, y_grid.shape[1]):
+        new_data[:, _ii] = to_new.ev(y_grid[:, _ii], x_grid[:, _ii])
 
     return new_data
 
@@ -52,13 +54,11 @@ def interp(in_cfg, in_var, out_cfg, output):
     in_data = in_cfg["load"](in_cfg["file"])
     xout = output[out_cfg["coords"]["x"]]
     yout = output[out_cfg["coords"]["y"]]
-    nx_out = xout.shape[0]
-    ny_out = yout.shape[0]
 
     if isinstance(in_data, xr.Dataset):
         nx_in = in_data[in_cfg["coords"]["x"]].shape[0]
         ny_in = in_data[in_cfg["coords"]["y"]].shape[0]
-        if nx_in >= nx_out and ny_in >= ny_out:
+        if nx_in >= xout.shape[0] and ny_in >= yout.shape[0]:
             # Use nearest neighbour when input data is higher res than output
             print("    using nearest neighbour")
             intp_data = in_data[in_var].interp(
@@ -82,12 +82,12 @@ def interp(in_cfg, in_var, out_cfg, output):
                 yout.values,
             )
     else:
-        xin = in_data[:, 0]
-        yin = in_data[:, 1]
-        zin = in_data[:, 2]
-        out_grid = np.meshgrid(xout, yout)
+        out_grid = np.meshgrid(xout, yout, indexing="ij")
         intp_data = scipy.interpolate.griddata(
-            list(zip(yin, xin)), zin, out_grid, method="nearest"
+            in_data[:, :2][:, ::-1],
+            in_data[:, 2],
+            tuple(out_grid),
+            method="nearest",
         )
 
     if not isinstance(intp_data, xr.DataArray):
@@ -115,6 +115,40 @@ def output_setup(input_file, output_file):
         options=["-x", "-v", "acab_alb,artm_alb,dzdt"],
     )
     return xr.open_dataset(output_file)
+
+
+def grid_center_lat_lon(dset, proj, proj_var_name, cvars=("y", "x")):
+    """Create latitude/longitude variables based on proj4 projection."""
+    lon_attrs = {
+        "long_name": "grid center longitude",
+        "standard_name": "longitude",
+        "units": "degrees_east",
+        "grid_mapping": proj_var_name,
+    }
+    lat_attrs = {
+        "long_name": "grid center latitude",
+        "standard_name": "latitude",
+        "units": "degrees_north",
+        "grid_mapping": proj_var_name,
+    }
+    x_grid, y_grid = np.meshgrid(dset[cvars[1]], dset[cvars[0]])
+    lon_grid, lat_grid = proj(x_grid.ravel(), y_grid.ravel(), inverse=True)
+
+    lon_grid = lon_grid.reshape(x_grid.shape)
+    lat_grid = lat_grid.reshape(y_grid.shape)
+
+    dset["lon"] = xr.DataArray(
+        lon_grid,
+        dims=cvars,
+        coords={cvar: dset[cvar] for cvar in cvars},
+        attrs=lon_attrs,
+    )
+    dset["lat"] = xr.DataArray(
+        lat_grid,
+        dims=cvars,
+        coords={cvar: dset[cvar] for cvar in cvars},
+        attrs=lat_attrs,
+    )
 
 
 def main():
@@ -378,6 +412,7 @@ def main():
     output_file = (
         f"ncs/antarctica_1km_{datetime.now().strftime('%Y_%m_%d')}.nc"
     )
+
     output_cfg = {"coords": {"x": "x1", "y": "y1"}}
     output = output_setup(input_config["1km_in"]["file"], output_file)
     output = output.assign_attrs(output_metadata)
@@ -391,17 +426,37 @@ def main():
                 output_variables[variable]
             )
 
+    # Map required output variable to a dataset and input variable
+    # (OUTPUT VARIABLE, INPUT DATASET, INPUT VARIABLE NAME)
     inout_map = [
-        ("bedmachine", "thickness", "thk"),
-        ("rignot_subshelf", "melt_steadystate", "subm_ss"),
+        ("thk", "bedmachine", "thickness"),
+        ("thkerr", "bedmachine", "errbed"),
+        ("bheatflx", "heatflux", "bheatflux"),
+        ("bheatflxerr", "heatflux_unc", "bheatflxerr"),
+        ("subm", "rignot_subshelf", "melt_actual"),
+        ("subm_ss", "rignot_subshelf", "melt_steadystate"),
     ]
-    for ds_in, in_var, out_var in inout_map:
-        output[out_var] = interp(
-            input_config[ds_in], in_var, output_cfg, output
-        )
 
+    all_exist = True
+
+    for _, ds_in, in_var in inout_map:
+        if not os.path.exists(input_config[ds_in]["file"]):
+            all_exist = False
+            print(f"MISSING FILE: {input_config[ds_in]['file']}")
+        else:
+            print(f"FILE FOUND: {input_config[ds_in]['file']}")
+
+    _, epsg3031, _ = projections.antarctica()
+    grid_center_lat_lon(output, epsg3031, "epsg_3031", cvars=("y1", "x1"))
+
+    print("-" * 50)
+    if all_exist:
+        for out_var, ds_in, in_var in inout_map:
+            output[out_var] = interp(
+                input_config[ds_in], in_var, output_cfg, output
+            )
+    output.to_netcdf(output_file + "_new.nc")
     # TODO: Check masking
-    # TODO: Setup epsg_3031 grid, lat lon coord variables
     # TODO: Write to netCDF
 
 
