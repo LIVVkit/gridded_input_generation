@@ -14,14 +14,43 @@ from util import projections
 __author__ = "Michael Kelleher"
 
 
-def xr_load(in_file):
+def xr_load(in_file, **kwargs):
     """Load netCDF data."""
     return xr.open_dataset(in_file)
 
 
-def np_load(in_file):
+def np_load(in_file, **kwargs):
     """Load text file."""
     return np.loadtxt(in_file)
+
+
+def load_hf(in_file, **kwargs):
+    """"Load Basal Heat Flux data, create gridded xarray.DataArray."""
+    assert "cfg" in kwargs, "Missing required argument cfg"
+    assert "in_var" in kwargs, "Missing required argument in_var"
+    cfg = kwargs["cfg"]
+    in_var = kwargs["in_var"]
+    d_x = cfg.get("dx", 15_000)
+    d_y = cfg.get("dy", 15_000)
+    data = np_load(in_file)
+    xin = data[:, 0]
+    yin = data[:, 1]
+    hf_in = data[:, 2]
+    x_ext = np.arange(xin.min(), xin.max() + d_x, d_x)
+    y_ext = np.arange(yin.min(), yin.max() + d_y, d_y)
+    hf_grid = np.zeros((y_ext.shape[0], x_ext.shape[0]))
+
+    for idx in range(hf_in.shape[0]):
+        ii = np.where(x_ext == xin[idx])[0]
+        jj = np.where(y_ext == yin[idx])[0]
+        hf_grid[jj, ii] = hf_in[idx]
+
+    hf_grid = xr.DataArray(
+        hf_grid,
+        coords={cfg["coords"]["x"]: x_ext, cfg["coords"]["y"]: y_ext},
+        dims=[cfg["coords"]["y"], cfg["coords"]["x"]],
+    )
+    return xr.Dataset({in_var: hf_grid})
 
 
 def rect_bivariate_interp(xin, yin, data, xout, yout):
@@ -51,7 +80,7 @@ def rect_bivariate_interp(xin, yin, data, xout, yout):
 def interp(in_cfg, in_var, out_cfg, output):
     """Take input data, interpolate, assgin metadata, return DataArray."""
     print(f"Interpolating {in_var} from {in_cfg['file']}")
-    in_data = in_cfg["load"](in_cfg["file"])
+    in_data = in_cfg["load"](in_cfg["file"], cfg=in_cfg, in_var=in_var)
     xout = output[out_cfg["coords"]["x"]]
     yout = output[out_cfg["coords"]["y"]]
 
@@ -260,9 +289,11 @@ def main():
         },
         "heatflux": {
             "file": "data/Martos-AIS-heatFlux/Antarctic_GHF.xyz",
-            "load": np_load,
+            "load": load_hf,
             "vars": ["bheatflx"],
             "coords": {"x": "x", "y": "y"},
+            "dx": 15000,
+            "dy": 15000,
             "meta": {
                 "bheatflux": {
                     "long_name": "basal heat flux",
@@ -290,8 +321,11 @@ def main():
         },
         "heatflux_unc": {
             "file": "data/Martos-AIS-heatFlux/Antarctic_GHF_uncertainty.xyz",
-            "load": np_load,
+            "load": load_hf,
             "vars": ["bheatflxerr"],
+            "coords": {"x": "x", "y": "y"},
+            "dx": 15000,
+            "dy": 15000,
             "meta": {
                 "bheatflxerr": {
                     "long_name": "basal heat flux uncertainty",
