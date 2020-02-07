@@ -33,15 +33,25 @@ def dict_diff(attrs_ref, attrs_test):
     ref_vars = attrs_ref.keys()
     test_vars = attrs_test.keys()
     common, ref_only, test_only = common_test(ref_vars, test_vars, "Attribute")
+    st_len = 90
     if common:
         for attr in common:
-            if attrs_ref[attr] == attrs_test[attr]:
-                log.info(f"   MATCH: {attr}: {attrs_ref[attr]}")
+            _atr_ref = attrs_ref[attr]
+            _atr_test = attrs_test[attr]
+            if _atr_ref == _atr_test:
+                if isinstance(_atr_ref, str) and len(_atr_ref) > st_len:
+                    _atr_ref = f"{_atr_ref[:st_len]}..."
+
+                log.info(f"   MATCH: {attr}: {_atr_ref}")
             else:
+                if isinstance(_atr_ref, str) and len(_atr_ref) > st_len:
+                    _atr_ref = f"{_atr_ref[:st_len]}..."
+                if isinstance(_atr_test, str) and len(_atr_test) > st_len:
+                    _atr_test = f"{_atr_test[:st_len]}..."
                 log.info(
                     f"\n   ======== DIFFERENCE: {attr} =========="
-                    f"\n     REF: {attrs_ref[attr]}"
-                    f"\n     TEST: {attrs_test[attr]}\n"
+                    f"\n     REF: {_atr_ref}"
+                    f"\n     TEST: {_atr_test}\n"
                     "   ----------------------------------"
                 )
 
@@ -97,33 +107,39 @@ def plot_sideby(ref, test, cmn_vars):
     """"Make side-by-side plot comparing reference to test."""
     proj = ccrs.SouthPolarStereo(central_longitude=0)
 
+    _skip = 10
+
     for var in sorted(cmn_vars):
         if "epsg" in var:
             continue
 
-        fig = plt.figure(figsize=(13, 5))
+        fig = plt.figure(figsize=(13, 13))
         axes = [
-            fig.add_subplot(1, 2, i + 1, projection=proj) for i in range(2)
+            fig.add_subplot(2, 2, i + 1, projection=proj) for i in range(3)
         ]
+        # No transform for the last axis
+        axes.append(fig.add_subplot(2, 2, 4))
+
         tform = get_map_transform(ref, var)
         print(f"Plot {var} Ref")
         vmin, vmax = np.nanpercentile(ref[var][0], (5, 95))
         cf_ref = axes[0].pcolormesh(
-            ref.x1,
-            ref.y1,
-            ref[var][0],
+            ref.x1[::_skip],
+            ref.y1[::_skip],
+            ref[var][0, ::_skip, ::_skip],
             transform=tform,
             vmin=vmin,
             vmax=vmax,
             # levels=np.linspace(*np.nanpercentile(ref[var][0], (5, 95)), 15),
         )
         plt.colorbar(cf_ref, ax=axes[0])
+
         print(f"Plot {var} Test")
         vmin, vmax = np.nanpercentile(test[var][0], (5, 95))
         cf_test = axes[1].pcolormesh(
-            test.x1,
-            test.y1,
-            test[var][0],
+            test.x1[::_skip],
+            test.y1[::_skip],
+            test[var][0, ::_skip, ::_skip],
             transform=tform,
             vmin=vmin,
             vmax=vmax
@@ -131,9 +147,36 @@ def plot_sideby(ref, test, cmn_vars):
         )
         plt.colorbar(cf_test, ax=axes[1])
         plt.suptitle(var)
-        for axis in axes:
+
+        print(f"Plot {var} Diff")
+        _diff = test[var] - ref[var]
+        vmin, vmax = np.nanpercentile(_diff[0], (5, 95))
+        if vmin < 0 < vmax:
+            _allmax = np.max(np.abs([vmin, vmax]))
+            vmin = -_allmax
+            vmax = _allmax
+            cmap = "RdBu_r"
+        else:
+            cmap = "viridis"
+
+        cf_diff = axes[2].pcolormesh(
+            test.x1[::_skip],
+            test.y1[::_skip],
+            _diff[0, ::_skip, ::_skip],
+            transform=tform,
+            vmin=vmin,
+            vmax=vmax,
+            cmap=cmap,
+            # levels=np.linspace(*np.nanpercentile(test[var][0], (5, 95)), 15),
+        )
+        plt.colorbar(cf_diff, ax=axes[2])
+        plt.suptitle(var)
+
+        for axis in axes[:-1]:
             axis.gridlines()
             axis.coastlines()
+
+        # axes[3].boxplot([test[var], ref[var]])
         print("  save figure")
         plt.savefig(f"plt_{var}_compare.png")
         plt.close()
@@ -141,8 +184,9 @@ def plot_sideby(ref, test, cmn_vars):
 
 def main():
     """Define and load two files, call plots."""
+    # ref_file = "/Users/25k/Data/ant/complete/antarctica_1km_2017_05_03.nc"
     ref_file = "ncs/antarctica_1km_2018_05_14.nc"
-    test_file = "ncs/antarctica_1km_2020_01_27.nc"
+    test_file = "ncs/antarctica_1km_2020_02_07.nc"
     ref = xr.open_dataset(ref_file, decode_times=False)
     test = xr.open_dataset(test_file, decode_times=False)
 
