@@ -122,6 +122,7 @@ def interp(in_cfg, in_var, out_cfg, output):
             # Use nearest neighbour when input data is higher res than output
             method = "nearest"
         else:
+            # Otherwise use linear
             method = "linear"
 
         print(f"    using {method}")
@@ -170,7 +171,14 @@ def interp(in_cfg, in_var, out_cfg, output):
 
     # Assign common dataset metadata, if it exists
     if in_cfg.get("cmeta"):
-        _outdata = _outdata.assign_attrs(in_cfg["cmeta"])
+        _cmeta = {}
+        # Ignore the attributes already defined for a specific variable
+        # That way, individual variable metadata can override the common
+        # file metadata for the dataset
+        for attr in in_cfg["cmeta"]:
+            if attr not in _outdata.attrs:
+                _cmeta[attr] = in_cfg["cmeta"][attr]
+        _outdata = _outdata.assign_attrs(_cmeta)
 
     return _outdata.expand_dims("time", 0)
 
@@ -277,14 +285,13 @@ def main():
                 "BedMachineAntarctica_2019-11-05_v01.nc"
             ),
             "load": xr_load,
-            "vars": ["thickness", "errbed"],
+            "vars": ["bed", "errbed", "firn", "mask", "surface", "thickness"],
             "coords": {"x": "x", "y": "y"},
             "meta": {
-                "thickness": {
-                    "long_name": "ice thickness",
-                    "standard_name": "land_ice_thickness",
+                "bed": {
+                    "long_name": "bed topography",
+                    "standard_name": "bedrock_altitude",
                     "units": "m",
-                    "ancillary_variables": "thkerr",
                     "grid_mapping": "epsg_3031",
                     "coordinates": "lon lat",
                 },
@@ -292,6 +299,39 @@ def main():
                     "long_name": "ice thickness error",
                     "standard_name": "land_ice_thickness standard_error",
                     "units": "m",
+                    "grid_mapping": "epsg_3031",
+                    "coordinates": "lon lat",
+                },
+                "firn": {
+                    "long_name": "firn air content",
+                    "standard_name": "firn_air_content",
+                    "units": "m",
+                    "grid_mapping": "epsg_3031",
+                    "coordinates": "lon lat",
+                    "source": "REMA (Byrd Polar and Climate Research Center "
+                    "and the Polar Geospatial Center)",
+                },
+                "mask": {
+                    "long_name": "mask",
+                    "flag_values": "ocean ice_free_land grounded_ice "
+                    "floating_ice lake_vostok",
+                    "source": "Antarctic Digital Database (rock outcrop) and "
+                    "Jeremie Mouginot pers. comm., grounding lines)",
+                },
+                "surface": {
+                    "long_name": "ice surface elevation",
+                    "standard_name": "surface_altitude",
+                    "units": "m",
+                    "grid_mapping": "epsg_3031",
+                    "coordinates": "lon lat",
+                    "source": "REMA (Byrd Polar and Climate Research Center "
+                    "and the Polar Geospatial Center)",
+                },
+                "thickness": {
+                    "long_name": "ice thickness",
+                    "standard_name": "land_ice_thickness",
+                    "units": "m",
+                    "ancillary_variables": "thkerr",
                     "grid_mapping": "epsg_3031",
                     "coordinates": "lon lat",
                 },
@@ -423,6 +463,10 @@ def main():
                     "units": "mm year-1",
                     "grid_mapping": "epsg_3031",
                     "coordinates": "lon lat",
+                    "comments": (
+                        "Mean 1979--2010 SMB; 2D linear interpolation of 27 km "
+                        "dataset."
+                    ),
                 },
                 "artm": {
                     "long_name": "annual mean air temperature (2 meter)",
@@ -430,6 +474,10 @@ def main():
                     "units": "degree_Celsius",
                     "grid_mapping": "epsg_3031",
                     "coordinates": "lon lat",
+                    "comments": (
+                        "Mean 1979--2010 t2m; 2D linear interpolation of 27 km "
+                        "dataset."
+                    ),
                 },
             },
             "cmeta": {
@@ -441,10 +489,6 @@ def main():
                     "(1979–2010) based on regional atmospheric climate "
                     "modeling, Geophys. Res. Lett., 39, L04501, "
                     "doi:10.1029/2011GL050713."
-                ),
-                "comments": (
-                    "Mean 1979--2010 t2m; 2D linear interpolation of 27 km "
-                    "dataset."
                 ),
             },
         },
@@ -549,7 +593,7 @@ def main():
         ),
         "institution": "Oak Ridge National Laboratory",
         "references": "See https://github.com/mkstratos/cism-data",
-        "Conventions": "CF-1.6",
+        "Conventions": "CF-1.7",
     }
 
     # Define metadata for the output coordinate variables
@@ -617,6 +661,7 @@ def main():
         ("dhdt", "cryosat", "dzdt"),
         ("thk", "bedmachine", "thickness"),
         ("thkerr", "bedmachine", "errbed"),
+        ("topg", "bedmachine", "bed"),
         ("bheatflx", "heatflux", "bheatflux"),
         ("bheatflxerr", "heatflux_unc", "bheatflxerr"),
         ("subm", "rignot_subshelf", "melt_actual"),
@@ -637,7 +682,7 @@ def main():
     ext_vars = [
         ("smb", "acab"),
         ("smb", "artm"),
-        ("topg", "topg"),
+        # ("topg", "topg"),
         ("veloc", "verr"),
         ("veloc", "vx"),
         ("veloc", "vy"),
