@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """Build CISM style input file from multiple sources using xarray.
 """
+import sys
 from pathlib import Path
 from datetime import datetime
 import numpy as np
@@ -187,10 +188,11 @@ def interp(in_cfg, in_var, out_cfg, output):
 
 def output_setup(input_file, output_file):
     """Create output file by copying old 1 km grid file."""
+    print(f"Setup Output: {input_file} -> {output_file}")
     nco = Nco()
     nco.ncks(
-        input=str(Path(DATA_ROOT, input_file)),
-        output=output_file,
+        input=str(input_file),
+        output=str(output_file),
         options=["-x", "-v", "acab_alb,artm_alb,dzdt"],
     )
     return xr.open_dataset(output_file).load()
@@ -238,7 +240,7 @@ def main():
     # common to all the variables in the dataset (e.g. soruce, references, etc.)
     input_config = {
         "1km_in": {
-            "file": "ncs/antarctica_1km_2017_05_03.nc",
+            "file": Path("ncs", "antarctica_1km_2017_05_03.nc"),
             "vars": ["acab_alb", "artm_alb", "dzdt"],
             "coords": {"x": "x1", "y": "y1"},
         },
@@ -650,17 +652,6 @@ def main():
         },
     }
 
-    # Set the output file, and coordinate variable names
-    output_file = Path(
-        "ncs", f"antarctica_1km_{datetime.now().strftime('%Y_%m_%d')}.nc"
-    )
-    output_cfg = {"coords": {"x": "x1", "y": "y1"}}
-    output = output_setup(input_config["1km_in"]["file"], output_file)
-
-    # Unlink from file, since output_setup loads netCDF to memory
-    # this allows writing back to the same file we open
-    output.close()
-
     # Map required output variable to a dataset and input variable
     # (OUTPUT VARIABLE, INPUT DATASET, INPUT VARIABLE NAME)
     inout_map = [
@@ -673,6 +664,30 @@ def main():
         ("subm", "rignot_subshelf", "melt_actual"),
         ("subm_ss", "rignot_subshelf", "melt_steadystate"),
     ]
+
+    # Check that the files we need exist, since it takes some time to do
+    # the interpolation, you hate to get halfway through and have it fail!
+    all_exist = True
+    for _, ds_in, in_var in inout_map:
+        if not input_config[ds_in]["file"].exists():
+            all_exist = False
+            print(f"MISSING FILE: {input_config[ds_in]['file']}")
+        else:
+            print(f"FILE FOUND: {input_config[ds_in]['file']}")
+
+    if not all_exist:
+        sys.exit(1)
+
+    # Set the output file, and coordinate variable names
+    output_file = Path(
+        "ncs", f"antarctica_1km_{datetime.now().strftime('%Y_%m_%d')}.nc"
+    )
+    output_cfg = {"coords": {"x": "x1", "y": "y1"}}
+    output = output_setup(input_config["1km_in"]["file"], output_file)
+
+    # Unlink from file, since output_setup loads netCDF to memory
+    # this allows writing back to the same file we open
+    output.close()
 
     # We need both the 3412 and 3031 projections. The former is what Cryosat2
     # comes in on, the latter is what all of our output will be on
@@ -697,24 +712,13 @@ def main():
         output[var] = output[var].assign_attrs(input_config[dset]["meta"][var])
         output[var] = output[var].assign_attrs(input_config[dset]["cmeta"])
 
-    # Check that the files we need exist, since it takes some time to do
-    # the interpolation, you hate to get halfway through and have it fail!
-    all_exist = True
-    for _, ds_in, in_var in inout_map:
-        if not Path(DATA_ROOT, input_config[ds_in]["file"]).exists():
-            all_exist = False
-            print(f"MISSING FILE: {input_config[ds_in]['file']}")
-        else:
-            print(f"FILE FOUND: {input_config[ds_in]['file']}")
-
     # Do the interpolation step for each variable. This could possibly be split
     # out into multiprocessing queue, since the computations are independent
     print("-" * 50)
-    if all_exist:
-        for out_var, ds_in, in_var in inout_map:
-            output[out_var] = interp(
-                input_config[ds_in], in_var, output_cfg, output
-            )
+    for out_var, ds_in, in_var in inout_map:
+        output[out_var] = interp(
+            input_config[ds_in], in_var, output_cfg, output
+        )
 
     # TODO: Check masking
 
