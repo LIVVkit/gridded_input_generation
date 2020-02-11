@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """Build CISM style input file from multiple sources using xarray.
 """
+from pathlib import Path
 import os
 from datetime import datetime
 import numpy as np
@@ -14,15 +15,17 @@ from util import projections
 
 __author__ = "Michael Kelleher"
 
+DATA_ROOT = Path("data")
+
 
 def xr_load(in_file, **kwargs):
     """Load netCDF data."""
-    return xr.open_dataset(in_file)
+    return xr.open_dataset(Path(DATA_ROOT, in_file))
 
 
 def np_load(in_file, **kwargs):
     """Load text file."""
-    return np.loadtxt(in_file)
+    return np.loadtxt(Path(DATA_ROOT, in_file))
 
 
 def load_cryosat(in_file, **kwargs):
@@ -33,7 +36,7 @@ def load_cryosat(in_file, **kwargs):
     in_var = kwargs["in_var"]
     # NOTE: Grid coordinates relate to lower-left of cell,
     # not grid center like CISM
-    din = xr.open_dataset(in_file)
+    din = xr_load(in_file)
     _xin = din[cfg["coords"]["x"]]
     _yin = din[cfg["coords"]["y"]]
     x_in_grid, y_in_grid = np.meshgrid(_xin, _yin)
@@ -187,7 +190,7 @@ def output_setup(input_file, output_file):
     """Create output file by copying old 1 km grid file."""
     nco = Nco()
     nco.ncks(
-        input=input_file,
+        input=str(Path(DATA_ROOT, input_file)),
         output=output_file,
         options=["-x", "-v", "acab_alb,artm_alb,dzdt"],
     )
@@ -236,15 +239,14 @@ def main():
     # common to all the variables in the dataset (e.g. soruce, references, etc.)
     input_config = {
         "1km_in": {
-            "file": "ncs/antarctica_1km_2017_05_03.nc",
+            "file": "complete/antarctica_1km_2017_05_03.nc",
             "vars": ["acab_alb", "artm_alb", "dzdt"],
             "coords": {"x": "x1", "y": "y1"},
         },
         # Rignot Subshelf Melt rates file
         "rignot_subshelf": {
             "file": (
-                "data/Rignot-subShelfMeltRates/"
-                "Ant_MeltingRate.flipNY.newAxes.nc"
+                "Rignot-subShelfMeltRates/" "Ant_MeltingRate.flipNY.newAxes.nc"
             ),
             "load": xr_load,
             "vars": ["melt_actual", "melt_steadystate"],
@@ -281,7 +283,7 @@ def main():
         # BedMachine thickness, topography
         "bedmachine": {
             "file": (
-                "data/500m.MassConsBed.AIS.Morlighem.2019/"
+                "500m.MassConsBed.AIS.Morlighem.2019/"
                 "BedMachineAntarctica_2019-11-05_v01.nc"
             ),
             "load": xr_load,
@@ -345,13 +347,13 @@ def main():
                     "doi:10.1038/s41561-019-0510-8"
                 ),
                 "comments": (
-                    "Obtained from NSIDC: https://nsidc.org/data/nsidc-0756. "
+                    "Obtained from NSIDC: https://nsidc.org/nsidc-0756. "
                     "Resampled from 500m grid using Nearest Neighbor -> 1km"
                 ),
             },
         },
         "heatflux": {
-            "file": "data/Martos-AIS-heatFlux/Antarctic_GHF.xyz",
+            "file": "Martos-AIS-heatFlux/Antarctic_GHF.xyz",
             "load": load_hf,
             "vars": ["bheatflx"],
             "coords": {"x": "x", "y": "y"},
@@ -384,7 +386,7 @@ def main():
             },
         },
         "heatflux_unc": {
-            "file": "data/Martos-AIS-heatFlux/Antarctic_GHF_uncertainty.xyz",
+            "file": "Martos-AIS-heatFlux/Antarctic_GHF_uncertainty.xyz",
             "load": load_hf,
             "vars": ["bheatflxerr"],
             "coords": {"x": "x", "y": "y"},
@@ -404,7 +406,7 @@ def main():
             },
         },
         "cryosat": {
-            "file": "data/Cryosat2/CS2_dzdt.nc",
+            "file": "Cryosat2/CS2_dzdt.nc",
             "load": load_cryosat,
             "vars": ["dzdt", "dzdterr"],
             "coords": {"x": "x1", "y": "y1"},
@@ -695,7 +697,7 @@ def main():
     # the interpolation, you hate to get halfway through and have it fail!
     all_exist = True
     for _, ds_in, in_var in inout_map:
-        if not os.path.exists(input_config[ds_in]["file"]):
+        if not Path(DATA_ROOT, input_config[ds_in]["file"]).exists():
             all_exist = False
             print(f"MISSING FILE: {input_config[ds_in]['file']}")
         else:
