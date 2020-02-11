@@ -3,7 +3,6 @@
 """Build CISM style input file from multiple sources using xarray.
 """
 from pathlib import Path
-import os
 from datetime import datetime
 import numpy as np
 import scipy
@@ -20,12 +19,12 @@ DATA_ROOT = Path("data")
 
 def xr_load(in_file, **kwargs):
     """Load netCDF data."""
-    return xr.open_dataset(Path(DATA_ROOT, in_file))
+    return xr.open_dataset(in_file)
 
 
 def np_load(in_file, **kwargs):
     """Load text file."""
-    return np.loadtxt(Path(DATA_ROOT, in_file))
+    return np.loadtxt(in_file)
 
 
 def load_cryosat(in_file, **kwargs):
@@ -239,14 +238,16 @@ def main():
     # common to all the variables in the dataset (e.g. soruce, references, etc.)
     input_config = {
         "1km_in": {
-            "file": "complete/antarctica_1km_2017_05_03.nc",
+            "file": "ncs/antarctica_1km_2017_05_03.nc",
             "vars": ["acab_alb", "artm_alb", "dzdt"],
             "coords": {"x": "x1", "y": "y1"},
         },
         # Rignot Subshelf Melt rates file
         "rignot_subshelf": {
-            "file": (
-                "Rignot-subShelfMeltRates/" "Ant_MeltingRate.flipNY.newAxes.nc"
+            "file": Path(
+                DATA_ROOT,
+                "Rignot-subShelfMeltRates/",
+                "Ant_MeltingRate.flipNY.newAxes.nc",
             ),
             "load": xr_load,
             "vars": ["melt_actual", "melt_steadystate"],
@@ -282,9 +283,10 @@ def main():
         },
         # BedMachine thickness, topography
         "bedmachine": {
-            "file": (
-                "500m.MassConsBed.AIS.Morlighem.2019/"
-                "BedMachineAntarctica_2019-11-05_v01.nc"
+            "file": Path(
+                DATA_ROOT,
+                "500m.MassConsBed.AIS.Morlighem.2019",
+                "BedMachineAntarctica_2019-11-05_v01.nc",
             ),
             "load": xr_load,
             "vars": ["bed", "errbed", "firn", "mask", "surface", "thickness"],
@@ -353,7 +355,7 @@ def main():
             },
         },
         "heatflux": {
-            "file": "Martos-AIS-heatFlux/Antarctic_GHF.xyz",
+            "file": Path("data", "Martos-AIS-heatFlux", "Antarctic_GHF.xyz"),
             "load": load_hf,
             "vars": ["bheatflx"],
             "coords": {"x": "x", "y": "y"},
@@ -386,7 +388,9 @@ def main():
             },
         },
         "heatflux_unc": {
-            "file": "Martos-AIS-heatFlux/Antarctic_GHF_uncertainty.xyz",
+            "file": Path(
+                "data", "Martos-AIS-heatFlux", "Antarctic_GHF_uncertainty.xyz"
+            ),
             "load": load_hf,
             "vars": ["bheatflxerr"],
             "coords": {"x": "x", "y": "y"},
@@ -406,7 +410,7 @@ def main():
             },
         },
         "cryosat": {
-            "file": "Cryosat2/CS2_dzdt.nc",
+            "file": Path(DATA_ROOT, "Cryosat2", "CS2_dzdt.nc"),
             "load": load_cryosat,
             "vars": ["dzdt", "dzdterr"],
             "coords": {"x": "x1", "y": "y1"},
@@ -647,8 +651,8 @@ def main():
     }
 
     # Set the output file, and coordinate variable names
-    output_file = (
-        f"ncs/antarctica_1km_{datetime.now().strftime('%Y_%m_%d')}.nc"
+    output_file = Path(
+        "ncs", f"antarctica_1km_{datetime.now().strftime('%Y_%m_%d')}.nc"
     )
     output_cfg = {"coords": {"x": "x1", "y": "y1"}}
     output = output_setup(input_config["1km_in"]["file"], output_file)
