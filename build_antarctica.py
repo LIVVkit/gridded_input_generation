@@ -2,8 +2,10 @@
 # -*- coding: utf-8 -*-
 """Build CISM style input file from multiple sources using xarray.
 """
+import importlib as ilib
 import sys
 from pathlib import Path
+import json
 from datetime import datetime
 import numpy as np
 import scipy
@@ -12,6 +14,7 @@ import xarray as xr
 from nco import Nco
 import pyproj
 from util import projections
+
 
 __author__ = "Michael Kelleher"
 
@@ -85,6 +88,73 @@ def load_hf(in_file, **kwargs):
         dims=[cfg["coords"]["y"], cfg["coords"]["x"]],
     )
     return xr.Dataset({in_var: hf_grid})
+
+
+def build_base_greenland(
+    out_file, epsg_config, mapping_name, coords, d_meters=1000
+):
+    """Build base coordinates for EPSG:3413 projection."""
+
+    proj_epsg3413, proj_mcb = projections.greenland()
+    projs = {
+        "epsg_3413": {
+            "prj": proj_epsg3413,
+            "lat_0": 90.0,
+            "lon_0": -45.0,
+            "lat_ts": 70.0,
+            "scale": 1.0,
+        },
+        "mcb": {
+            "prj": proj_mcb,
+            "lat_0": 90.0,
+            "lon_0": 321.0,
+            "lat_ts": 71.0,
+            "scale": 1.0,
+        },
+    }
+
+    with open(epsg_config, "r") as f:
+        cfg = json.load(f)
+
+    x1d = np.arange(cfg["ll"][0], cfg["ur"][0], d_meters)
+    y1d = np.arange(cfg["ll"][1], cfg["ur"][1], d_meters)
+
+    grid_attrs = {
+        "grid_mapping_name": "polar_stereographic",
+        "latitude_of_projection_origin": projs[mapping_name]["lon_0"],
+        "straight_vertical_longitude_from_pole": projs[mapping_name]["lat_0"],
+        "standard_parallel": projs[mapping_name]["lat_ts"],
+        "proj_scale_factor": projs[mapping_name]["scale"],
+        "false_easting": 0.0,
+        "false_northing": 0.0,
+        "ellipsoid": "WGS84",
+        "datum": "WGS84",
+        "units": "meters",
+        "proj4_string": projections.proj_string(projs[mapping_name]["prj"]),
+    }
+
+    attrs = {
+        coords[axis]: {
+            "long_name": f"{axis}-coordinate in projection",
+            "standard_name": f"projection_{axis}_coordinate",
+            "axis": axis.capitalize(),
+            "units": "m",
+            "grid_mapping": mapping_name,
+        }
+        for axis in coords
+    }
+
+    epsg_grid = xr.Dataset({coords["x"]: x1d, coords["y"]: y1d})
+    grid_map = xr.Variable(dims=[], data=None, attrs=grid_attrs)
+
+    for axis in coords:
+        epsg_grid[coords[axis]] = epsg_grid[coords[axis]].assign_attrs(
+            attrs[coords[axis]]
+        )
+    epsg_grid[mapping_name] = grid_map
+
+    epsg_grid.to_netcdf(out_file)
+    return epsg_grid
 
 
 def rect_bivariate_interp(xin, yin, data, xout, yout):
@@ -186,16 +256,27 @@ def interp(in_cfg, in_var, out_cfg, output):
     return _outdata.expand_dims("time", 0)
 
 
-def output_setup(input_file, output_file):
+def output_setup(
+    input_file, output_file, island, out_proj, coords=None, res_m=1000.0
+):
     """Create output file by copying old 1 km grid file."""
-    print(f"Setup Output: {input_file} -> {output_file}")
-    nco = Nco()
-    nco.ncks(
-        input=str(input_file),
-        output=str(output_file),
-        options=["-x", "-v", "acab_alb,artm_alb,dzdt"],
-    )
-    return xr.open_dataset(output_file).load()
+    if island == "antarctica":
+        print(f"Setup Output: {input_file} -> {output_file}")
+        nco = Nco()
+        nco.ncks(
+            input=str(input_file),
+            output=str(output_file),
+            options=["-x", "-v", "acab_alb,artm_alb,dzdt"],
+        )
+        ds_base = xr.open_dataset(output_file).load()
+    else:
+        # island == "greenland"
+        config_file = Path("data", out_proj, f"{out_proj}grid.json")
+        ds_base = build_base_greenland(
+            output_file, config_file, out_proj, coords, res_m
+        )
+
+    return ds_base
 
 
 def grid_center_lat_lon(dset, proj, proj_var_name, cvars=("y", "x")):
@@ -232,438 +313,34 @@ def grid_center_lat_lon(dset, proj, proj_var_name, cvars=("y", "x")):
     )
 
 
-def main():
+def main(island="antarctica", resolution=1, proj_opt=None):
     """Define configuration and required variables."""
     # This mega-dictionary has all the metadata for each dataset that's going
     # to be interpolated to the output grid. Each dataset has a file,
     # some variable names, meta data for each variable, and metadata that's
     # common to all the variables in the dataset (e.g. soruce, references, etc.)
-    input_config = {
-        "1km_in": {
-            "file": Path("ncs", "antarctica_1km_2017_05_03.nc"),
-            "vars": ["acab_alb", "artm_alb", "dzdt"],
-            "coords": {"x": "x1", "y": "y1"},
-        },
-        # Rignot Subshelf Melt rates file
-        "rignot_subshelf": {
-            "file": Path(
-                DATA_ROOT,
-                "Rignot-subShelfMeltRates/",
-                "Ant_MeltingRate.flipNY.newAxes.nc",
-            ),
-            "load": xr_load,
-            "vars": ["melt_actual", "melt_steadystate"],
-            "coords": {"x": "x1", "y": "y1"},
-            "meta": {
-                "melt_actual": {
-                    "long_name": "sub-shelf melt rate",
-                    "units": "m year-1",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                },
-                "melt_steadystate": {
-                    "long_name": "steady state sub-shelf melt rate",
-                    "units": "m year-1",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                },
-            },
-            "cmeta": {
-                "reference": (
-                    "Rignot, E., S. Jacobs, J. Mouginot, and B. Scheuchl, "
-                    "2013: Ice-Shelf Melting Around Antarctica. Science, "
-                    "341, 266-270, doi:10.1126/science.1235798."
-                ),
-                "source": "J. Mouginot",
-                "comments": (
-                    "2D linear interpolation of provided dataset. Authors "
-                    "request we communicate with them prior to publishing "
-                    "and acknowledge them as the source of the data in "
-                    "presentations."
-                ),
-            },
-        },
-        # BedMachine thickness, topography
-        "bedmachine": {
-            "file": Path(
-                DATA_ROOT,
-                "500m.MassConsBed.AIS.Morlighem.2019",
-                "BedMachineAntarctica_2019-11-05_v01.nc",
-            ),
-            "load": xr_load,
-            "vars": ["bed", "errbed", "firn", "mask", "surface", "thickness"],
-            "coords": {"x": "x", "y": "y"},
-            "meta": {
-                "bed": {
-                    "long_name": "bed topography",
-                    "standard_name": "bedrock_altitude",
-                    "units": "m",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                },
-                "errbed": {
-                    "long_name": "ice thickness error",
-                    "standard_name": "land_ice_thickness standard_error",
-                    "units": "m",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                },
-                "firn": {
-                    "long_name": "firn air content",
-                    "standard_name": "firn_air_content",
-                    "units": "m",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                    "source": "REMA (Byrd Polar and Climate Research Center "
-                    "and the Polar Geospatial Center)",
-                },
-                "mask": {
-                    "long_name": "mask",
-                    "flag_values": "ocean ice_free_land grounded_ice "
-                    "floating_ice lake_vostok",
-                    "source": "Antarctic Digital Database (rock outcrop) and "
-                    "Jeremie Mouginot pers. comm., grounding lines)",
-                },
-                "surface": {
-                    "long_name": "ice surface elevation",
-                    "standard_name": "surface_altitude",
-                    "units": "m",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                    "source": "REMA (Byrd Polar and Climate Research Center "
-                    "and the Polar Geospatial Center)",
-                },
-                "thickness": {
-                    "long_name": "ice thickness",
-                    "standard_name": "land_ice_thickness",
-                    "units": "m",
-                    "ancillary_variables": "thkerr",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                },
-            },
-            "cmeta": {
-                "source": "BedMachine Antarctica, Mathieu Morlighem",
-                "reference": (
-                    "Morlighem M. et al., (2019), Deep glacial troughs and "
-                    "stabilizing ridges unveiled beneath the margins of the "
-                    "Antarctic ice sheet, Nature Geoscience (accepted), "
-                    "doi:10.1038/s41561-019-0510-8"
-                ),
-                "comments": (
-                    "Obtained from NSIDC: https://nsidc.org/nsidc-0756. "
-                    "Resampled from 500m grid using Nearest Neighbor -> 1km"
-                ),
-            },
-        },
-        "heatflux": {
-            "file": Path("data", "Martos-AIS-heatFlux", "Antarctic_GHF.xyz"),
-            "load": load_hf,
-            "vars": ["bheatflx"],
-            "coords": {"x": "x", "y": "y"},
-            "dx": 15000,
-            "dy": 15000,
-            "meta": {
-                "bheatflux": {
-                    "long_name": "basal heat flux",
-                    "standard_name": (
-                        "upward_geothermal_heat_flux_at_ground_level_in_land_ice"
-                    ),
-                    "units": "mW m-2",
-                    "ancillary_variables": "bheatflxerr",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                }
-            },
-            "cmeta": {
-                "reference": (
-                    "Martos, Yasmina M (2017): Antarctic geothermal heat flux "
-                    "distribution and estimated Curie Depths, links to gridded "
-                    "files. PANGAEA, https://doi.org/10.1594/PANGAEA.882503."
-                ),
-                "comments": (
-                    "Resampled from 15km grid using 2D nearest neighbor "
-                    "interpolation; polar sterographic projection true scaled "
-                    "latitude not specified in dataset -- assumed 71 deg. "
-                    "(EPSG:3031)"
-                ),
-            },
-        },
-        "heatflux_unc": {
-            "file": Path(
-                "data", "Martos-AIS-heatFlux", "Antarctic_GHF_uncertainty.xyz"
-            ),
-            "load": load_hf,
-            "vars": ["bheatflxerr"],
-            "coords": {"x": "x", "y": "y"},
-            "dx": 15000,
-            "dy": 15000,
-            "meta": {
-                "bheatflxerr": {
-                    "long_name": "basal heat flux uncertainty",
-                    "standard_name": (
-                        "upward_geothermal_heat_flux_at_ground_"
-                        "level_in_land_ice standard_error"
-                    ),
-                    "units": "mW m-2",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                }
-            },
-        },
-        "cryosat": {
-            "file": Path(DATA_ROOT, "Cryosat2", "CS2_dzdt.nc"),
-            "load": load_cryosat,
-            "vars": ["dzdt", "dzdterr"],
-            "coords": {"x": "x1", "y": "y1"},
-            "meta": {
-                "dzdt": {
-                    "long_name": "observed thickness tendency",
-                    "standard_name": "tendency_of_land_ice_thickness",
-                    "units": "m year-1",
-                    "ancillary_variables": "dhdterr",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                },
-                "dzdterr": {
-                    "long_name": "observed thickness tendency uncertainty",
-                    "standard_name": (
-                        "tendency_of_land_ice_thickness standard error"
-                    ),
-                    "units": "m year-1",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                },
-            },
-            "cmeta": {
-                "source": "M. McMillan and A. Shepherd",
-                "reference": (
-                    "Mcmillan, M., A. Shepherd, A. Sundal, K. Briggs, A. Muir, "
-                    "A. Ridout, A. Hogg, and D. Wingham, 2014: Increased ice "
-                    "losses from Antarctica detected by CryoSat-2. Geophys. "
-                    "Res. Lett, doi:10.1002/2014GL060111."
-                ),
-                "comments": (
-                    "As per the request of the authors (M. McMillan & "
-                    "A. Shepherd), these data are not to be shared outside of "
-                    "this project (PISCEES). They are to be used for "
-                    "optimization and model validation purposes only, as the "
-                    "original authors still have plans to use them for other "
-                    "studies of their own. They are ok with us using them for "
-                    "optimization and validation with the caveat that we "
-                    "should communicate further with them about their use "
-                    "prior to publishing any stuides that use them. Also, if "
-                    "the data are used for presentations, we should "
-                    "acknowldege the authors as the source of the data. "
-                    "For any further questions, please check with "
-                    "S. Price or D. Martin."
-                ),
-            },
-        },
-        "smb": {
-            "vars": ["acab", "artm"],
-            "meta": {
-                "acab": {
-                    "long_name": "water equivalent surface mass balance",
-                    "standard_name": (
-                        "land_ice_lwe_surface_specific_mass_balance"
-                    ),
-                    "units": "mm year-1",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                    "comments": (
-                        "Mean 1979--2010 SMB; 2D linear interpolation of 27 km "
-                        "dataset."
-                    ),
-                },
-                "artm": {
-                    "long_name": "annual mean air temperature (2 meter)",
-                    "standard_name": "air_temperature",
-                    "units": "degree_Celsius",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                    "comments": (
-                        "Mean 1979--2010 t2m; 2D linear interpolation of 27 km "
-                        "dataset."
-                    ),
-                },
-            },
-            "cmeta": {
-                "source": "J. T. M. Lenaerts",
-                "reference": (
-                    "Lenaerts, J. T. M., M. R. vanden Broeke, W. J. van deBerg,"
-                    " E. vanMeijgaard, and P. Kuipers Munneke (2012), A new, "
-                    "high‐resolution surface mass balance map of Antarctica "
-                    "(1979–2010) based on regional atmospheric climate "
-                    "modeling, Geophys. Res. Lett., 39, L04501, "
-                    "doi:10.1029/2011GL050713."
-                ),
-            },
-        },
-        "topg": {
-            "vars": ["topg"],
-            "meta": {
-                "topg": {
-                    "long_name": "bed topography",
-                    "standard_name": "bedrock_altitude",
-                    "units": "m",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                },
-            },
-            "cmeta": {
-                "reference": (
-                    "Fretwell, P., et al.: Bedmap2: improved ice bed, surface "
-                    "and thickness datasets for Antarctica, The Cryosphere, 7, "
-                    "375-393, https://doi.org/10.5194/tc-7-375-2013, 2013."
-                ),
-                "comments": (
-                    "Resampled from 5km grid using 2D nearest "
-                    "neighbor interpolation"
-                ),
-            },
-        },
-        "veloc": {
-            "vars": ["vx", "vy", "verr"],
-            "meta": {
-                "vx": {
-                    "long_name": "surface x velocity",
-                    "standard_name": "land_ice_surface_x_velocity",
-                    "units": "m year-1",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                    "source": "NSIDC; Dataset ID: NSIDC-0484 v1.1",
-                    "reference": (
-                        "Rignot, E., J. Mouginot, and B. Scheuchl. 2011. "
-                        "Ice Flow of the Antarctic Ice Sheet, Science. 333. "
-                        "1427-1430. https://doi.org/10.1126/science.1208336. "
-                        "Mouginot J., B. Scheuchl and E. Rignot (2012), "
-                        "Mapping of Ice Motion in Antarctica Using "
-                        "Synthetic-Aperture Radar Data, Remote Sensing, "
-                        "doi 10.3390/rs4092753"
-                    ),
-                    "comments": (
-                        "2D linear interpolation of provided 450 m dataset"
-                    ),
-                },
-                "vy": {
-                    "long_name": "surface y velocity",
-                    "standard_name": "land_ice_surface_y_velocity",
-                    "units": "m year-1",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                    "source": "NSIDC; Dataset ID: NSIDC-0484 v1.1",
-                    "reference": (
-                        "Rignot, E., J. Mouginot, and B. Scheuchl. 2011. "
-                        "Ice Flow of the Antarctic Ice Sheet, Science. 333. "
-                        "1427-1430. https://doi.org/10.1126/science.1208336. "
-                        "Mouginot J., B. Scheuchl and E. Rignot (2012), "
-                        "Mapping of Ice Motion in Antarctica Using "
-                        "Synthetic-Aperture Radar Data, Remote Sensing, "
-                        "doi 10.3390/rs4092753"
-                    ),
-                    "comments": (
-                        "2D linear interpolation of provided 450 m dataset"
-                    ),
-                },
-                "verr": {
-                    "long_name": "magnitude of surface velocity error estimate",
-                    "units": "m year-1",
-                    "grid_mapping": "epsg_3031",
-                    "coordinates": "lon lat",
-                },
-            },
-            "cmeta": {
-                "source": "NSIDC; Dataset ID: NSIDC-0484 v1.1",
-                "reference": (
-                    "Rignot, E., J. Mouginot, and B. Scheuchl. 2011. Ice Flow "
-                    "of the Antarctic Ice Sheet, Science. 333. 1427-1430. "
-                    "https://doi.org/10.1126/science.1208336. Mouginot J., "
-                    "B. Scheuchl and E. Rignot (2012), Mapping of Ice Motion "
-                    "in Antarctica Using Synthetic-Aperture Radar Data, Remote "
-                    "Sensing, doi 10.3390/rs4092753"
-                ),
-                "comments": (
-                    "2D linear interpolation of provided 450 m dataset"
-                ),
-            },
-        },
-    }
+    if island == "antarctica":
+        template_dset = f"{resolution}km_in"
+        proj_out_name = "epsg_3031"
+        projs = projections.antarctica()
+        proj_out = projs[0]
+    elif island == "greenland":
+        template_dset = "input"
+        projs = projections.greenland()
+        if proj_opt is None:
+            proj_out_name = "epsg_3413"
+            proj_out = projs[0]
+        else:
+            proj_out_name = "mcb"
+            proj_out = projs[1]
 
-    # Get metadata from heatflux config (so it doesn't have to be in here twice)
-    input_config["heatflux_unc"]["cmeta"] = input_config["heatflux"]["cmeta"]
+    config = ilib.import_module(f"{island}_config")
 
-    # Define metadata for the output file itself
-    output_metadata = {
-        "title": "CISM-style input dataset for ice-sheet models",
-        "history": "Created {} by J. Kennedy & M. Kelleher.".format(
-            datetime.now().strftime("%c")
-        ),
-        "institution": "Oak Ridge National Laboratory",
-        "references": "See https://github.com/mkstratos/cism-data",
-        "Conventions": "CF-1.7",
-    }
-
-    # Define metadata for the output coordinate variables
-    output_variables = {
-        "time": {
-            "long_name": "time",
-            "standard_name": "time",
-            "axis": "T",
-            "units": "common_years since 2008-01-01 00:00:00",
-            "calendar": "365_day",
-            "comments": (
-                "The initial time here is an estimate of the nominal date for "
-                "Rignot (2011) InSAR velocity data. Because this is a "
-                "synthesis of datasets across many time periods, the inital "
-                "date is inherently fuzzy and should be changed to suit your "
-                "purposes."
-            ),
-        },
-        "y1": {
-            "long_name": "y-coordinate of projection",
-            "standard_name": "projection_y_coordinate",
-            "axis": "Y",
-            "units": "m",
-        },
-        "x1": {
-            "long_name": "x-coordinate of projection",
-            "standard_name": "projection_x_coordinate",
-            "axis": "X",
-            "units": "m",
-        },
-        "epsg_3031": {
-            "false_easting": 0.0,
-            "false_northing": 0.0,
-            "geographic_crs_name": "EPSG3031",
-            "grid_mapping_name": "polar_stereographic",
-            "horizontal_datum_name": "WGS84",
-            "latitude_of_projection_origin": -90.0,
-            "reference_ellipsoid_name": "WGS84",
-            "standard_parallel": -71.0,
-            "straight_vertical_longitude_from_pole": 0.0,
-            "scale_factor_at_projection_origin": 1.0,
-            "prime_meridian_name": "Greenwich",
-            "proj4_string": (
-                "+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +k=1 +x_0=0 +y_0=0"
-                " +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
-            ),
-            "units": "m",
-        },
-    }
-
-    # Map required output variable to a dataset and input variable
-    # (OUTPUT VARIABLE, INPUT DATASET, INPUT VARIABLE NAME)
-    inout_map = [
-        ("dhdt", "cryosat", "dzdt"),
-        ("thk", "bedmachine", "thickness"),
-        ("thkerr", "bedmachine", "errbed"),
-        ("topg", "bedmachine", "bed"),
-        ("bheatflx", "heatflux", "bheatflux"),
-        ("bheatflxerr", "heatflux_unc", "bheatflxerr"),
-        ("subm", "rignot_subshelf", "melt_actual"),
-        ("subm_ss", "rignot_subshelf", "melt_steadystate"),
-    ]
+    input_config = config.input_config
+    output_metadata = config.output_metadata
+    output_variables = config.output_variables
+    inout_map = config.inout_map
+    ext_vars = config.ext_vars
 
     # Check that the files we need exist, since it takes some time to do
     # the interpolation, you hate to get halfway through and have it fail!
@@ -680,10 +357,17 @@ def main():
 
     # Set the output file, and coordinate variable names
     output_file = Path(
-        "ncs", f"antarctica_1km_{datetime.now().strftime('%Y_%m_%d')}.nc"
+        "ncs",
+        f"{island}_{resolution}km_{datetime.now().strftime('%Y_%m_%d')}.nc",
     )
     output_cfg = {"coords": {"x": "x1", "y": "y1"}}
-    output = output_setup(input_config["1km_in"]["file"], output_file)
+    output = output_setup(
+        input_config[template_dset]["file"],
+        output_file,
+        island,
+        proj_out_name,
+        coords=output_cfg["coords"],
+    )
 
     # Unlink from file, since output_setup loads netCDF to memory
     # this allows writing back to the same file we open
@@ -691,23 +375,21 @@ def main():
 
     # We need both the 3412 and 3031 projections. The former is what Cryosat2
     # comes in on, the latter is what all of our output will be on
-    epsg3412, epsg3031, _ = projections.antarctica()
-    grid_center_lat_lon(output, epsg3031, "epsg_3031", cvars=("y1", "x1"))
+    # epsg3412, epsg3031, _ = projections.antarctica()
+    grid_center_lat_lon(
+        output,
+        proj_out,
+        proj_out_name,
+        cvars=(output_cfg["coords"]["y"], output_cfg["coords"]["x"]),
+    )
 
-    # Add grid information to cryosat configuration so that cryosat can
-    # be transformed from its original grid to the output grid
-    input_config["cryosat"]["grid_from"] = epsg3412
-    input_config["cryosat"]["grid_to"] = epsg3031
+    if island == "antarctica":
+        # Add grid information to cryosat configuration so that cryosat can
+        # be transformed from its original grid to the output grid
+        input_config["cryosat"]["grid_from"] = projs[1]
+        input_config["cryosat"]["grid_to"] = proj_out
 
-    # Add metadata for extant variables (copied from the original netCDF file)
-    ext_vars = [
-        ("smb", "acab"),
-        ("smb", "artm"),
-        # ("topg", "topg"),
-        ("veloc", "verr"),
-        ("veloc", "vx"),
-        ("veloc", "vy"),
-    ]
+    # These are variables in the base file that just need metadata copied
     for dset, var in ext_vars:
         output[var] = output[var].assign_attrs(input_config[dset]["meta"][var])
         output[var] = output[var].assign_attrs(input_config[dset]["cmeta"])
@@ -719,6 +401,9 @@ def main():
         output[out_var] = interp(
             input_config[ds_in], in_var, output_cfg, output
         )
+        output[out_var] = output[out_var].assign_attrs(
+            {"grid_mapping": proj_out_name}
+        )
 
     # TODO: Check masking
 
@@ -727,7 +412,7 @@ def main():
 
     # There are also coordinate variables that need metadata
     for variable in output_variables:
-        if variable == "epsg_3031":
+        if variable in ["epsg_3031", "epsg_3413", "mcb"]:
             # This creates a zero-dimension grid mapping variable so that
             # the grid mapping is cf-conventions compliant
             output[variable] = xr.Variable(
@@ -745,4 +430,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    main("greenland")
