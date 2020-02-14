@@ -74,43 +74,52 @@ import numpy as np
 
 from util import speak
 from util.ncfunc import copy_atts
-from util import projections 
+from util import projections
 import util.interpolate as interp
+
 
 def velocity_epsg3413(args, nc_insar, nc_base, base):
     insar = projections.DataGrid()
-    insar.y = nc_insar.variables['y']
-    insar.x = nc_insar.variables['x']
+    insar.y = nc_insar.variables["y"]
+    insar.x = nc_insar.variables["x"]
     insar.ny = insar.y[:].shape[0]
     insar.nx = insar.x[:].shape[0]
     insar.make_grid()
 
-    for var in ['vy','vx','ey','ex'] :
-        speak.verbose(args,'   Interpolating '+var+' and writing to base.')
-        sys.stdout.write("   [%-60s] %d%%" % ('='*0, 0.))
+    for var in ["vy", "vx", "ey", "ex"]:
+        speak.verbose(
+            args, "   Interpolating " + var + " and writing to base."
+        )
+        sys.stdout.write("   [%-60s] %d%%" % ("=" * 0, 0.0))
         sys.stdout.flush()
-        insar_data = np.ma.masked_values(nc_insar.variables[var][:,:], -2.e9)
-        data_min = insar_data.min() 
-        data_max = insar_data.max() 
+        insar_data = np.ma.masked_values(nc_insar.variables[var][:, :], -2.0e9)
+        data_min = insar_data.min()
+        data_max = insar_data.max()
 
-        insar_to_base = scipy.interpolate.RectBivariateSpline( insar.y[:], insar.x[:], insar_data, kx=1, ky=1, s=0) # regular 2d linear interp. but faster
-        base_data = np.zeros( base.dims )
+        insar_to_base = scipy.interpolate.RectBivariateSpline(
+            insar.y[:], insar.x[:], insar_data, kx=1, ky=1, s=0
+        )  # regular 2d linear interp. but faster
+        base_data = np.zeros(base.dims)
         for ii in range(0, base.nx):
-            ctr = (ii*60)/base.nx
-            sys.stdout.write("\r   [%-60s] %d%%" % ('='*ctr, ctr/60.*100.))
+            ctr = (ii * 60) // base.nx
+            sys.stdout.write(
+                "\r   [%-60s] %d%%" % ("=" * ctr, ctr / 60.0 * 100.0)
+            )
             sys.stdout.flush()
-            base_data[:,ii] = insar_to_base.ev(base.y_grid[:,ii], base.x_grid[:,ii] )
-        sys.stdout.write("\r   [%-60s] %d%%\n" % ('='*60, 100.))
+            base_data[:, ii] = insar_to_base.ev(
+                base.y_grid[:, ii], base.x_grid[:, ii]
+            )
+        sys.stdout.write("\r   [%-60s] %d%%\n" % ("=" * 60, 100.0))
         sys.stdout.flush()
-        
-        base_data[base_data < data_min] = -2.e9
-        base_data[base_data > data_max] = -2.e9
-        
-        base.var = nc_base.createVariable(var, 'f4', ('y','x',) )
-        base.var[:] = base_data[:]  
+
+        base_data[base_data < data_min] = -2.0e9
+        base_data[base_data > data_max] = -2.0e9
+
+        base.var = nc_base.createVariable(var, "f4", ("y", "x",))
+        base.var[:] = base_data[:]
         copy_atts(nc_insar.variables[var], base.var)
-        base.var.grid_mapping = 'epsg_3413'
-        base.var.coordinates = 'lon lat'
+        base.var.grid_mapping = "epsg_3413"
+        base.var.coordinates = "lon lat"
 
 
 def velocity_bamber(args, nc_insar, nc_base, trans):
@@ -132,36 +141,39 @@ def velocity_bamber(args, nc_insar, nc_base, trans):
         A DataGrid() class instance that holds the base data grid transformed 
         to the EPSG:3413 projection.
     """
-    insar_y = nc_insar.variables['y']
+    insar_y = nc_insar.variables["y"]
     insar_ny = insar_y[:].shape[0]
 
-    insar_x = nc_insar.variables['x']
+    insar_x = nc_insar.variables["x"]
     insar_nx = insar_x[:].shape[0]
 
-    base_data = np.ndarray( (trans.ny,trans.nx) )
+    base_data = np.ndarray((trans.ny, trans.nx))
 
+    for vv in ["vy", "vx", "ey", "ex"]:
+        insar_data[:, :] = 0.0
+        base_data[:, :] = 0.0
 
-    for vv in ['vy','vx','ey','ex'] :
-        insar_data[:,:] = 0.
-        base_data[:,:] = 0.
-        
-        insar_var = nc_insar.variables[ vv ]
-        insar_data = np.ma.masked_values( nc_bamber.variables[var_list[1]][:,:], -2.e9)
-        data_min = insar_data.min() 
-        data_max = insar_data.max() 
+        insar_var = nc_insar.variables[vv]
+        insar_data = np.ma.masked_values(
+            nc_bamber.variables[var_list[1]][:, :], -2.0e9
+        )
+        data_min = insar_data.min()
+        data_max = insar_data.max()
 
-
-        speak.verbose(args,"   Interpolating "+vv+".")
-        insar_to_base = scipy.interpolate.RectBivariateSpline( insar_y[:], insar_x[:], insar_data, kx=1, ky=1, s=0) # regular 2d linear interp. but faster
+        speak.verbose(args, "   Interpolating " + vv + ".")
+        insar_to_base = scipy.interpolate.RectBivariateSpline(
+            insar_y[:], insar_x[:], insar_data, kx=1, ky=1, s=0
+        )  # regular 2d linear interp. but faster
 
         for ii in range(0, trans.nx):
-            base_data[:,ii] = insar_to_base.ev(trans.y_grid[:,ii], trans.x_grid[:,ii] )
-        
-        base_data[base_data < data_min] = -2.e9
-        base_data[base_data > data_max] = -2.e9
-        
-        speak.verbose(args,"   Writing "+vv+" to base.")
-        base_var = nc_base.createVariable( vv, 'f4', ('y','x',) )
-        base_var[:,:] = base_data[:,:]
-        copy_atts(insar_var, base_var)
+            base_data[:, ii] = insar_to_base.ev(
+                trans.y_grid[:, ii], trans.x_grid[:, ii]
+            )
 
+        base_data[base_data < data_min] = -2.0e9
+        base_data[base_data > data_max] = -2.0e9
+
+        speak.verbose(args, "   Writing " + vv + " to base.")
+        base_var = nc_base.createVariable(vv, "f4", ("y", "x",))
+        base_var[:, :] = base_data[:, :]
+        copy_atts(insar_var, base_var)

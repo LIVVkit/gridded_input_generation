@@ -53,19 +53,26 @@ import scipy.interpolate
 import numpy as np
 
 
-
 def bheatflx(args, nc_base, base):
     # FIXME: get datadir from args
-    data_dir = os.path.abspath(os.path.join(os.path.basename(__file__), 'HeatFlux'))
+    data_dir = os.path.abspath(
+        os.path.join(os.path.basename(__file__), "HeatFlux")
+    )
 
-    heat_flux = np.loadtxt(os.path.join(data_dir, 'Antarctic_GHF.xyz'))
-    heat_flux_unct = np.loadtxt(os.path.join(data_dir, 'Antarctic_GHF_uncertainty.xyz'))
+    heat_flux = np.loadtxt(os.path.join(data_dir, "Antarctic_GHF.xyz"))
+    heat_flux_unct = np.loadtxt(
+        os.path.join(data_dir, "Antarctic_GHF_uncertainty.xyz")
+    )
 
-    heat_flux_points = zip(heat_flux[:, 1], heat_flux[:, 0])
-    new_bheatflx = scipy.interpolate.griddata(heat_flux_points, heat_flux[:, 2], (base.y_grid, base.x_grid), method='nearest')
+    heat_flux_points = list(zip(heat_flux[:, 1], heat_flux[:, 0]))
+    new_bheatflx = scipy.interpolate.griddata(
+        heat_flux_points,
+        heat_flux[:, 2],
+        (base.y_grid, base.x_grid),
+        method="nearest",
+    )
 
-    base.bheatflx = nc_base.creatVariable('bheatflx', 'f4', ('y','x'))
+    base.bheatflx = nc_base.creatVariable("bheatflx", "f4", ("y", "x"))
     base.bheatflx[:] = -new_bheatflx[:]  # invert sign for model convention
-    base.bheatflx.grid_mapping = 'epsg_3031'
-    base.bheatflx.coordinates = 'lon lat'
-
+    base.bheatflx.grid_mapping = "epsg_3031"
+    base.bheatflx.coordinates = "lon lat"
