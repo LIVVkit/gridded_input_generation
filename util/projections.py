@@ -17,45 +17,65 @@ import pyproj
 
 SURFACE_AREA_EARTH = 510065621724000.0  # unit: m^2
 # source: http://home.vikenfiber.no/humrum/WGS84_Eng.html
-SQR_DEG_ON_SPHERE = 41252.96            # unit: deg^2
-SQR_RAD_ON_SPHERE = 4.*math.pi          # unit rad^2
+SQR_DEG_ON_SPHERE = 41252.96  # unit: deg^2
+SQR_RAD_ON_SPHERE = 4.0 * math.pi  # unit rad^2
 
 
-class DataGrid():
+class DataGrid:
     """A class to hold data grids.
     """
+
+    def __init__(self, x_in=None, y_in=None):
+        self.x = x_in
+        self.y = y_in
+
+        if y_in is not None:
+            self.ny = y_in.shape[0]
+        if x_in is not None:
+            self.nx = x_in.shape[0]
+
+        if x_in is not None and y_in is not None:
+            self.dims = (self.ny, self.nx)
+            self.make_grid()
+
     # FIXME: need a creation step here
     def make_grid(self):
         """A way to make a basic grid from x,y data.
         """
-        self.y_grid, self.x_grid = scipy.meshgrid(self.y[:], self.x[:], indexing='ij')
+        self.y_grid, self.x_grid = scipy.meshgrid(
+            self.y[:], self.x[:], indexing="ij"
+        )
         self.dims = (self.ny, self.nx)
-        self.dy = self.y[1]-self.y[0]
-        self.dx = self.x[1]-self.x[0]
+        self.dy = self.y[1] - self.y[0]
+        self.dx = self.x[1] - self.x[0]
 
     def make_grid_flip_y(self):
         """A way to make a basic grid from x,y data, inverting y.
         """
-        self.y_grid, self.x_grid = scipy.meshgrid(self.y[::-1], self.x[:], indexing='ij')
+        self.y_grid, self.x_grid = scipy.meshgrid(
+            self.y[::-1], self.x[:], indexing="ij"
+        )
         self.dims = (self.ny, self.nx)
-        self.dy = self.y[0]-self.y[1]
-        self.dx = self.x[1]-self.x[0]
+        self.dy = self.y[0] - self.y[1]
+        self.dx = self.x[1] - self.x[0]
 
 
 def grid_center_latlons(nc_base, base, proj, proj_var_name, cvars=("y", "x")):
-    base.lon_grid = nc_base.createVariable('lon', 'f4', cvars)
-    base.lon_grid.long_name = 'grid center longitude'
-    base.lon_grid.standard_name = 'longitude'
-    base.lon_grid.units = 'degrees_east'
+    base.lon_grid = nc_base.createVariable("lon", "f4", cvars)
+    base.lon_grid.long_name = "grid center longitude"
+    base.lon_grid.standard_name = "longitude"
+    base.lon_grid.units = "degrees_east"
     base.lon_grid.grid_mapping = proj_var_name
 
-    base.lat_grid = nc_base.createVariable('lat', 'f4', cvars)
-    base.lat_grid.long_name = 'grid center latitude'
-    base.lat_grid.standard_name = 'latitude'
-    base.lat_grid.units = 'degrees_north'
+    base.lat_grid = nc_base.createVariable("lat", "f4", cvars)
+    base.lat_grid.long_name = "grid center latitude"
+    base.lat_grid.standard_name = "latitude"
+    base.lat_grid.units = "degrees_north"
     base.lat_grid.grid_mapping = proj_var_name
 
-    lon_grid, lat_grid = proj(base.x_grid.ravel(), base.y_grid.ravel(), inverse=True)
+    lon_grid, lat_grid = proj(
+        base.x_grid.ravel(), base.y_grid.ravel(), inverse=True
+    )
     lon_grid.shape = base.x_grid.shape
     lat_grid.shape = base.x_grid.shape
 
@@ -71,7 +91,9 @@ def transform(base, proj1, proj2):
     trans.nx = base.nx
     trans.dims = base.dims
 
-    trans.x_grid, trans.y_grid = pyproj.transform(proj1, proj2, base.x_grid.flatten(), base.y_grid.flatten())
+    trans.x_grid, trans.y_grid = pyproj.transform(
+        proj1, proj2, base.x_grid.flatten(), base.y_grid.flatten()
+    )
     trans.y_grid = trans.y_grid.reshape((base.ny, base.nx))
     trans.x_grid = trans.x_grid.reshape((base.ny, base.nx))
 
@@ -93,7 +115,9 @@ def greenland():
 
     """
     # NOTE: NSIDC sea ice polar stereographic north
-    proj_epsg3413 = pyproj.Proj('+proj=stere +lat_ts=70.0 +lat_0=90 +lon_0=-45.0 +k_0=1.0 +x_0=0.0 +y_0=0.0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+    proj_epsg3413 = pyproj.Proj(
+        "+proj=stere +lat_ts=70.0 +lat_0=90 +lon_0=-45.0 +k_0=1.0 +x_0=0.0 +y_0=0.0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+    )
     # NOTE: WGS84 Arctic polar stereographic
     # proj_epsg3995 = pyproj.Proj('+proj=stere +lat_0=90 +lat_ts=-71 +lon_0=0 +k=1 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
 
@@ -103,13 +127,21 @@ def greenland():
     # EIGEN-GL04C which doesn't exist in proj4. However, EGM2008 should
     # be within ~1m everywhere (and within 10-20 cm in most places) so
     # we use the egm08 projection which is available in proj4
-    path_egm08 = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'egm08_25.gtx')
+    path_egm08 = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "egm08_25.gtx"
+    )
     if not (os.path.exists(path_egm08)):
-        raise Exception("No "+path_egm08+"! Get it here: http://download.osgeo.org/proj/vdatum/egm08_25/egm08_25.gtx")
+        raise Exception(
+            "No "
+            + path_egm08
+            + "! Get it here: http://download.osgeo.org/proj/vdatum/egm08_25/egm08_25.gtx"
+        )
 
     # NOTE: Bamber projection appears to not actually have any fasle northings or eastings.
     # proj_eigen_gl04c = pyproj.Proj('+proj=stere +lat_ts=71.0 +lat_0=90 +lon_0=321.0 +k_0=1.0 +x_0=800000.0 +y_0=3400000.0 +geoidgrids='+path_bamber+'/egm08_25.gtx')
-    proj_eigen_gl04c = pyproj.Proj('+proj=stere +lat_ts=71.0 +lat_0=90 +lon_0=321.0 +k_0=1.0')
+    proj_eigen_gl04c = pyproj.Proj(
+        "+proj=stere +lat_ts=71.0 +lat_0=90 +lon_0=321.0 +k_0=1.0"
+    )
 
     # NOTE: EPSG:32624 (WGS84 / UTM zone 24N)
     # proj_epsg32624 = pyproj.Proj('+proj=utm +zone=24 +datum=WGS84 +units=m +no_defs')
@@ -118,15 +150,28 @@ def greenland():
 
 
 def equal_area(min_lat, max_lat, lon_0):
-    proj_aea = pyproj.Proj('+proj=aea +lat_1='+str(min_lat)+' +lat_2='+str(max_lat)+' +lat_0='+str((max_lat+min_lat)/2.)+' +lon_0='+str(lon_0))
+    proj_aea = pyproj.Proj(
+        "+proj=aea +lat_1="
+        + str(min_lat)
+        + " +lat_2="
+        + str(max_lat)
+        + " +lat_0="
+        + str((max_lat + min_lat) / 2.0)
+        + " +lon_0="
+        + str(lon_0)
+    )
     return proj_aea
 
 
 def antarctica():
     # NOTE: NSIDC sea ice polar stereographic south
-    proj_epsg3412 = pyproj.Proj('+proj=stere +lat_0=-90 +lat_ts=-70 +lon_0=0 +k=1 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+    proj_epsg3412 = pyproj.Proj(
+        "+proj=stere +lat_0=-90 +lat_ts=-70 +lon_0=0 +k=1 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+    )
     # NOTE: WGS84 Antarctic polar stereographic
-    proj_epsg3031 = pyproj.Proj('+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +k=1 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs')
+    proj_epsg3031 = pyproj.Proj(
+        "+proj=stere +lat_0=-90 +lat_ts=-71 +lon_0=0 +k=1 +x_0=0 +y_0=0 +ellps=WGS84 +datum=WGS84 +units=m +no_defs"
+    )
 
     # EIGEN-GL04C referenced data:
     # ----------------------------
@@ -134,11 +179,20 @@ def antarctica():
     # EIGEN-GL04C which doesn't exist in proj4. However, EGM2008 should
     # be within ~1m everywhere (and within 10-20 cm in most places) so
     # we use the egm08 projection which is available in proj4
-    path_egm08 = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'egm08_25.gtx')
+    path_egm08 = os.path.join(
+        os.path.dirname(os.path.realpath(__file__)), "egm08_25.gtx"
+    )
     if not (os.path.exists(path_egm08)):
-        raise Exception("No "+path_egm08+"! Get it here: http://download.osgeo.org/proj/vdatum/egm08_25/egm08_25.gtx")
+        raise Exception(
+            "No "
+            + path_egm08
+            + "! Get it here: http://download.osgeo.org/proj/vdatum/egm08_25/egm08_25.gtx"
+        )
 
-    proj_eigen_gl04c = pyproj.Proj('+proj=stere +lat_0=-90 +lat_ts=71.0 +lon_0=0.0 +k_0=1.0 +geoidgrids='+path_egm08)
+    proj_eigen_gl04c = pyproj.Proj(
+        "+proj=stere +lat_0=-90 +lat_ts=71.0 +lon_0=0.0 +k_0=1.0 +geoidgrids="
+        + path_egm08
+    )
 
     return proj_epsg3412, proj_epsg3031, proj_eigen_gl04c
 
