@@ -7,8 +7,8 @@ import matplotlib
 import matplotlib.pyplot as plt
 import xarray as xr
 import cartopy.crs as ccrs
+import seaborn as sns
 
-matplotlib.use("Agg")
 __author__ = "Michael Kelleher"
 
 
@@ -30,8 +30,8 @@ def common_test(ref, test, dtype=""):
 def dict_diff(attrs_ref, attrs_test):
     """Find out what changed."""
     log = logging.getLogger("test")
-    ref_vars = attrs_ref.keys()
-    test_vars = attrs_test.keys()
+    ref_vars = list(attrs_ref.keys())
+    test_vars = list(attrs_test.keys())
     common, ref_only, test_only = common_test(ref_vars, test_vars, "Attribute")
     st_len = 90
     if common:
@@ -108,7 +108,7 @@ def plot_single(data, varname, title, skip=1, axes=None):
     print(f"     {title}")
     tform = get_map_transform(data, varname)
     if axes is None:
-        fig = plt.figure(figsize=(13, 13))
+        fig = plt.figure(figsize=(13, 7))
         axes = [
             fig.add_subplot(1, 2, 1, projection=tform),
             fig.add_subplot(1, 2, 2),
@@ -118,8 +118,17 @@ def plot_single(data, varname, title, skip=1, axes=None):
         fig = None
         single_var = False
         axes = [axes]
+    if "missing_value" not in data[varname].attrs:
+        _data = np.ma.masked_values(
+            data[varname][0], data[varname][0].max()
+        ).compressed()
 
-    vmin, vmax = np.nanpercentile(data[varname][0], (2, 98))
+    else:
+        _data = data[varname][0]
+    try:
+        vmin, vmax = np.nanpercentile(_data, (2, 98))
+    except TypeError:
+        vmin, vmax = (-1, 1)
 
     if vmin < 0 < vmax:
         _allmax = np.max(np.abs([vmin, vmax]))
@@ -140,22 +149,25 @@ def plot_single(data, varname, title, skip=1, axes=None):
         # levels=np.linspace(*np.nanpercentile(ref[var][0], (5, 95)), 15),
     )
     axes[0].set_title(title)
-    plt.colorbar(_cf, ax=axes[0])
+    plt.colorbar(_cf, ax=axes[0], pad=0.02, shrink=0.8)
+    axes[0].gridlines()
+    axes[0].coastlines()
 
     if single_var:
         axes[1].boxplot(
-            [np.ma.masked_invalid(data[varname].values.ravel()).compressed(),],
+            [np.ma.masked_invalid(data[varname].values.ravel()).compressed()],
             labels=[title],
             whis=[1, 99],
         )
-        fig.suptitle(varname)
+        sns.despine(ax=axes[1], offset=10)
+        fig.suptitle(varname, fontsize=18)
 
     return fig
 
 
 def plot_sideby(ref, test, cmn_vars, skip=1):
     """"Make side-by-side plot comparing reference to test."""
-    proj = ccrs.SouthPolarStereo(central_longitude=0)
+    proj = ccrs.NorthPolarStereo(central_longitude=0)
 
     for var in sorted(cmn_vars):
         if "epsg" in var:
@@ -178,34 +190,70 @@ def plot_sideby(ref, test, cmn_vars, skip=1):
         plot_single(test, var, "Test", skip, axes=axes[1])
         plot_single(_diff, var, "Test - Reference", skip, axes[2])
 
-        for axis in axes[:-1]:
-            axis.gridlines()
-            axis.coastlines()
-
         print(f"     boxplot")
         # Because boxplot uses np.percentile to compute the box location,
         # We need to mask invalid data, and compress to just the non-masked
         # values, so that the percentiles don't come out as NaNs
+        _masktest = np.ma.masked_greater(
+            np.ma.masked_invalid(test[var].values.ravel()), 1e20
+        ).compressed()
+        _maskref = np.ma.masked_greater(
+            np.ma.masked_invalid(test[var].values.ravel()), 1e20
+        ).compressed()
+
         axes[3].boxplot(
-            [
-                np.ma.masked_invalid(test[var].values.ravel()).compressed(),
-                np.ma.masked_invalid(ref[var].values.ravel()).compressed(),
-            ],
-            labels=["Test", "Ref"],
-            whis=[1, 99],
+            [_masktest, _maskref], labels=["Test", "Ref"], whis=[1, 99],
+        )
+        axes[3].text(
+            1.1,
+            np.nanpercentile(_masktest, 50),
+            annote(test[var].values.ravel()),
+            horizontalalignment="left",
+        )
+        axes[3].text(
+            2.1,
+            np.nanpercentile(_maskref, 50),
+            annote(ref[var].values.ravel()),
+            horizontalalignment="left",
         )
         axes[3].set_title("Boxplot")
         print(" save figure")
-        plt.suptitle(var)
-        plt.savefig(f"plt_{var}_compare.png")
+        plt.suptitle(var, fontsize=18)
+        fig.subplots_adjust(
+            left=0.02,
+            bottom=0.04,
+            right=0.95,
+            top=0.97,
+            wspace=0.12,
+            hspace=0.01,
+        )
+        # plt.show()
+        sns.despine(ax=axes[3], offset=10)
+        plt.savefig(f"plt_{var}_compare.{EXTN}")
         plt.close()
+
+
+def annote(data):
+    """Get text annotation for boxplot, so masked values are evident."""
+    str_out = ""
+
+    if any(np.isnan(data)):
+        str_out += "MASK NaN\n"
+    if any(data > 1e20):
+        str_out += "MASK >1e20"
+    if str_out == "":
+        str_out = "NO MASK"
+
+    return str_out
 
 
 def main():
     """Define and load two files, call plots."""
     # ref_file = "/Users/25k/Data/ant/complete/antarctica_1km_2017_05_03.nc"
-    ref_file = "ncs/antarctica_1km_2018_05_14.nc"
-    test_file = "ncs/antarctica_1km_2020_02_10.nc"
+    # ref_file = "ncs/antarctica_1km_2018_05_14.nc"
+    # test_file = "ncs/antarctica_1km_2020_02_10.nc"
+    ref_file = "complete/greenland_8km_2017_06_27.epsg3413.nc"
+    test_file = "complete/greenland_8km_2020_02_13.epsg3413.nc"
     ref = xr.open_dataset(ref_file, decode_times=False).load()
     test = xr.open_dataset(test_file, decode_times=False).load()
 
@@ -226,13 +274,14 @@ def main():
     for _refvar in ref_vars:
         print(f"Plot reference {_refvar}")
         _fig = plot_single(ref, _refvar, "Reference", skip=skip)
-        _fig.savefig(f"plt_ref_{_refvar}.png")
+        _fig.savefig(f"plt_{_refvar}_ref_only.{EXTN}")
 
     for _testvar in test_vars:
         print(f"Plot test {_testvar}")
-        plot_single(test, _testvar, "Test", skip=skip)
-        _fig.savefig(f"plt_test_{_testvar}.png")
+        _fig = plot_single(test, _testvar, "Test", skip=skip)
+        _fig.savefig(f"plt_{_testvar}_test_only.{EXTN}")
 
 
+EXTN = "png"
 if __name__ == "__main__":
     main()
