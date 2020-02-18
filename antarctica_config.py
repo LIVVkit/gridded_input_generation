@@ -187,6 +187,8 @@ input_config = {
         "load": ba.load_cryosat,
         "vars": ["dzdt", "dzdterr"],
         "coords": {"x": "x1", "y": "y1"},
+        "grid_from": "epsg_3031",
+        "grid_to": "epsg_3412",
         "meta": {
             "dzdt": {
                 "long_name": "observed thickness tendency",
@@ -420,7 +422,7 @@ output_variables = {
         "units": "m",
     },
 }
-
+output_cfg = {"coords": {"x": "x1", "y": "y1"}}
 # Map required output variable to a dataset and input variable
 # (OUTPUT VARIABLE, INPUT DATASET, INPUT VARIABLE NAME)
 inout_map = [

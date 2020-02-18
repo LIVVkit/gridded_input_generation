@@ -34,8 +34,18 @@ def np_load(in_file, **kwargs):
 def load_cryosat(in_file, **kwargs):
     """Load and process Cryosat2 data."""
     cfg = kwargs["cfg"]
-    grid_from = cfg["grid_from"]
-    grid_to = cfg["grid_to"]
+    grids = {
+        "epsg_3413": projections.greenland()[0],
+        "mcb": projections.greenland()[1],
+        "eigen_gl04c_gis": projections.greenland()[1],
+        "epsg_3412": projections.antarctica()[0],
+        "epsg_3031": projections.antarctica()[1],
+        "eigen_gl04c_ais": projections.antarctica()[2],
+    }
+
+    grid_from = grids[cfg["grid_from"]]
+    grid_to = grids[cfg["grid_to"]]
+
     in_var = kwargs["in_var"]
     # NOTE: Grid coordinates relate to lower-left of cell,
     # not grid center like CISM
@@ -43,20 +53,37 @@ def load_cryosat(in_file, **kwargs):
     _xin = din[cfg["coords"]["x"]]
     _yin = din[cfg["coords"]["y"]]
     x_in_grid, y_in_grid = np.meshgrid(_xin, _yin)
+    print(f"   transform from {cfg['grid_from']} to {cfg['grid_to']}")
     x_transform, y_transform = pyproj.transform(
         grid_from, grid_to, x_in_grid, y_in_grid
     )
-    x_transform = x_transform.mean(axis=0)
-    y_transform = y_transform.mean(axis=1)
+    # x_transform = x_transform.mean(axis=0)
+    # y_transform = y_transform.mean(axis=1)
 
     data = din[in_var].values
-    _out = xr.DataArray(
-        np.ma.masked_values(data[-1, :, :], -9999),
-        dims=[cfg["coords"]["y"], cfg["coords"]["x"]],
-        coords={
+    # Some datasets have a time axis, crop that because it will be added later
+    # to the interpolated dataset
+    if data.ndim == 3:
+        _slice = slice(-1, None, None)
+    else:
+        _slice = slice(None)
+
+    dims = [cfg["coords"]["y"], cfg["coords"]["x"]]
+    if x_transform.ndim == 1:
+        dim_orig = dims
+        coords = {
             cfg["coords"]["y"]: y_transform,
             cfg["coords"]["x"]: x_transform,
-        },
+        }
+    else:
+        dim_orig = [dim + "_o" for dim in dims]
+        coords = {
+            dims[0]: (dim_orig, y_transform),
+            dims[1]: (dim_orig, x_transform),
+        }
+
+    _out = xr.DataArray(
+        np.ma.masked_values(data[_slice], -9999), dims=dim_orig, coords=coords
     )
     return xr.Dataset({in_var: _out})
 
@@ -199,6 +226,7 @@ def interp(in_cfg, in_var, out_cfg, output):
             method = "linear"
 
         print(f"    using {method}")
+        breakpoint()
         intp_data = in_data[in_var].interp(
             **{in_cfg["coords"]["x"]: xout, in_cfg["coords"]["y"]: yout},
             method=method,
@@ -341,6 +369,7 @@ def main(island="antarctica", resolution=1, proj_opt=None):
     output_variables = config.output_variables
     inout_map = config.inout_map
     ext_vars = config.ext_vars
+    output_cfg = config.output_cfg
 
     # Check that the files we need exist, since it takes some time to do
     # the interpolation, you hate to get halfway through and have it fail!
@@ -360,7 +389,7 @@ def main(island="antarctica", resolution=1, proj_opt=None):
         "ncs",
         f"{island}_{resolution}km_{datetime.now().strftime('%Y_%m_%d')}.nc",
     )
-    output_cfg = {"coords": {"x": "x1", "y": "y1"}}
+
     output = output_setup(
         input_config[template_dset]["file"],
         output_file,
@@ -382,12 +411,6 @@ def main(island="antarctica", resolution=1, proj_opt=None):
         proj_out_name,
         cvars=(output_cfg["coords"]["y"], output_cfg["coords"]["x"]),
     )
-
-    if island == "antarctica":
-        # Add grid information to cryosat configuration so that cryosat can
-        # be transformed from its original grid to the output grid
-        input_config["cryosat"]["grid_from"] = projs[1]
-        input_config["cryosat"]["grid_to"] = proj_out
 
     # These are variables in the base file that just need metadata copied
     for dset, var in ext_vars:
@@ -430,4 +453,4 @@ def main(island="antarctica", resolution=1, proj_opt=None):
 
 
 if __name__ == "__main__":
-    main("greenland")
+    main("greenland", proj_opt="mcb")
