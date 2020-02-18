@@ -76,6 +76,7 @@ from util import speak
 from util.ncfunc import copy_atts
 from util import projections
 import util.interpolate as interp
+from util.ncfunc import copy_atts_bad_fill
 
 
 def velocity_epsg3413(args, nc_insar, nc_base, base):
@@ -123,6 +124,70 @@ def velocity_epsg3413(args, nc_insar, nc_base, base):
 
 
 def velocity_bamber(args, nc_insar, nc_base, trans):
+    """Get acab from the RACMO 2.0 data.
+
+    This function pulls in the `smb` variable from the RACMO 2.0 dataset
+    and writes it to the base dataset as `acab`. NetCDF attributes are
+    preserved.
+    Parameters
+    ----------
+    args :
+        Namespace() object holding parsed command line arguments.
+    nc_insar :
+        An opened netCDF Dataset containing the InSAR velocity data
+    nc_base :
+        The created netCDF Dataset that will contain the base data.
+    trans:
+        A DataGrid() class instance that holds the base data grid information.
+
+    """
+    proj_greenland = projections.greenland()
+    x_in = nc_insar.variables["x"][:]
+    y_in = nc_insar.variables["y"][:]
+    x2d, y2d = np.meshgrid(x_in, y_in)
+
+    x_t, y_t = pyproj.transform(
+        proj_greenland[0], proj_greenland[1], x=x2d.flatten(), y=y2d.flatten(),
+    )
+
+    speak.notquiet(args, "    Generate tree")
+    transform_tree = scipy.spatial.cKDTree(np.vstack((x_t, y_t)).T)
+
+    speak.notquiet(args, "    Query tree")
+    qd, qi = transform_tree.query(
+        np.vstack((trans.x_grid.flatten(), trans.y_grid.flatten())).T,
+        n_jobs=-1,
+        k=1,
+    )
+
+    base_vars = {"vy": "vy", "vx": "vx", "ey": "ey", "ex": "ex"}
+
+    for bvar, rvar in base_vars.items():
+        speak.notquiet(
+            args, f"   Interpolating {bvar} and writing {rvar} to base."
+        )
+
+        z_in = nc_insar.variables[rvar][:]
+
+        x_t, y_t, z_t = pyproj.transform(
+            proj_greenland[0],
+            proj_greenland[1],
+            x=x2d.flatten(),
+            y=y2d.flatten(),
+            z=z_in.flatten(),
+        )
+
+        z_t = z_t.reshape(z_in.shape)
+
+        z_interp = z_t.flatten()[qi].reshape(trans.y_grid.shape)
+
+        trans.var = nc_base.createVariable(bvar, "f4", ("y", "x",))
+        trans.var[:] = z_interp[:]
+        copy_atts_bad_fill(nc_insar.variables[rvar], trans.var, 9.96921e36)
+        trans.var.comments = "Nearest neighbour remapping"
+
+
+def velocity_bamber_old(args, nc_insar, nc_base, trans):
     """Get the velocities from the insar data.
 
     This function pulls in the `vx`, `vy`, `ex`  and `ey` variables from the
@@ -150,6 +215,7 @@ def velocity_bamber(args, nc_insar, nc_base, trans):
     base_data = np.ndarray((trans.ny, trans.nx))
 
     for vv in ["vy", "vx", "ey", "ex"]:
+        insar_data = np.ma.masked_values(nc_insar.variables[vv][:, :], -2.0e9)
         insar_data[:, :] = 0.0
         base_data[:, :] = 0.0
 
