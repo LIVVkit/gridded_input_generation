@@ -81,5 +81,26 @@ def build_base(f_base, nc_bamber):
 
     # create some grids for interpolation
     base.make_grid()
+    if "mcb" not in nc_base.variables:
+        attrs = {
+            "false_easting": 0.0,
+            "false_northing": 0.0,
+            "geographic_crs_name": "EPSG3413",
+            "grid_mapping_name": "polar_stereographic",
+            "horizontal_datum_name": "WGS84",
+            "latitude_of_projection_origin": 90.0,
+            "reference_ellipsoid_name": "WGS84",
+            "standard_parallel": 71.0,
+            "straight_vertical_longitude_from_pole": 321.0,
+            "scale_factor_at_projection_origin": 1.0,
+            "prime_meridian_name": "Greenwich",
+            "proj4_string": (
+                "+proj=stere +lat_ts=71.0 +lat_0=90 +lon_0=321.0 +k_0=1.0"
+            ),
+            "units": "m",
+        }
+
+        nc_base.createVariable("mcb", "c")
+        nc_base["mcb"].setncatts(attrs)
 
     return (nc_base, base)
