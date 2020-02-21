@@ -10,6 +10,7 @@ import cartopy.crs as ccrs
 import seaborn as sns
 
 __author__ = "Michael Kelleher"
+plt.style.use("fivethirtyeight")
 
 
 def common_test(ref, test, dtype=""):
@@ -64,7 +65,7 @@ def check_vars(ref, test):
     log = logging.getLogger("test")
 
     for dvar in sorted(common):
-        log.info(f"\nCHECK {dvar} ATTRIBUTES")
+        log.info(f"\n{dvar.upper()} ATTRIBUTES")
         dict_diff(ref[dvar].attrs, test[dvar].attrs)
 
     return common, ref_only, test_only
@@ -75,6 +76,11 @@ def get_map_transform(dset, var):
     try:
         grid_map = dset[var].grid_mapping
     except AttributeError:
+        grid_map = None
+
+    try:
+        _map = dset[grid_map]
+    except KeyError:
         grid_map = None
 
     if grid_map is not None:
@@ -97,6 +103,17 @@ def get_map_transform(dset, var):
         else:
             proj = ccrs.PlateCarree
         tform = proj(**params)
+    elif (
+        dset[var]["y1"].min() == -3400000
+        and dset[var]["x1"].min() == -800000.0
+    ):
+        # Reference file for Bamber grid doesn't have grid map, and is on this
+        # grid, so default to that if the lower left corner matches
+        tform = ccrs.Stereographic(
+            central_longitude=321.0,
+            central_latitude=90.0,
+            true_scale_latitude=71.0,
+        )
     else:
         tform = ccrs.PlateCarree()
 
@@ -170,7 +187,7 @@ def plot_sideby(ref, test, cmn_vars, skip=1):
     proj = ccrs.NorthPolarStereo(central_longitude=0)
 
     for var in sorted(cmn_vars):
-        if "epsg" in var:
+        if "epsg" in var or "mcb" in var or "mapping" in var:
             continue
 
         fig = plt.figure(figsize=(13, 13))
@@ -249,11 +266,18 @@ def annote(data):
 
 def main():
     """Define and load two files, call plots."""
-    # ref_file = "/Users/25k/Data/ant/complete/antarctica_1km_2017_05_03.nc"
+    # Test Antarctica
     # ref_file = "ncs/antarctica_1km_2018_05_14.nc"
     # test_file = "ncs/antarctica_1km_2020_02_10.nc"
-    ref_file = "complete/greenland_8km_2017_06_27.epsg3413.nc"
-    test_file = "complete/greenland_8km_2020_02_13.epsg3413.nc"
+
+    # Test Bamber grid
+    ref_file = "complete/greenland_8km_2016_12_01.mcb.nc"
+    test_file = "complete/greenland_8km_2020_02_21.mcb.nc"
+
+    # Test EPSG:3413 grid
+    # ref_file = "complete/greenland_8km_2017_06_27.epsg3413.nc"
+    # test_file = "complete/greenland_8km_2020_02_13.epsg3413.nc"
+
     ref = xr.open_dataset(ref_file, decode_times=False).load()
     test = xr.open_dataset(test_file, decode_times=False).load()
 
@@ -271,12 +295,17 @@ def main():
     skip = 1
     cmn_vars, ref_vars, test_vars = check_vars(ref, test)
     plot_sideby(ref, test, cmn_vars, skip=skip)
+
     for _refvar in ref_vars:
+        if "epsg" in _refvar or "mcb" in _refvar or "mapping" in _refvar:
+            continue
         print(f"Plot reference {_refvar}")
         _fig = plot_single(ref, _refvar, "Reference", skip=skip)
         _fig.savefig(f"plt_{_refvar}_ref_only.{EXTN}")
 
     for _testvar in test_vars:
+        if "epsg" in _testvar or "mcb" in _testvar or "mapping" in _testvar:
+            continue
         print(f"Plot test {_testvar}")
         _fig = plot_single(test, _testvar, "Test", skip=skip)
         _fig.savefig(f"plt_{_testvar}_test_only.{EXTN}")
