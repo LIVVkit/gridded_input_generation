@@ -57,7 +57,10 @@ def apply_mask(args, nc_mask, nc_base):
     base_topg = nc_base.variables["topg"]
     topg_data = base_topg[:, :]
 
-    mask = nc_mask.variables["IceSheetMask"]
+    try:
+        mask = nc_mask.variables["IceSheetMask"].values
+    except AttributeError:
+        mask = nc_mask.variables["IceSheetMask"]
 
     speak.verbose(args, "   Applying mask to thk.")
     thk_data = thk_data * mask[:, :]

@@ -44,11 +44,14 @@ import scipy
 import pyproj
 import numpy as np
 from shapely.geometry import Point, shape
+from tqdm import tqdm
 
 from util import speak
 from util.ncfunc import copy_atts, copy_atts_bad_fill, copy_atts_add_fill
 from util import projections
 import util.interpolate as interp
+
+from pykdtree.kdtree import KDTree
 
 
 def mcb_epsg3413(
@@ -108,7 +111,8 @@ def mcb_epsg3413(
         "      Secondary Data [BamberDEM]:  BedrockElevation and BedrockError.",
     )
 
-    # base_vars = {'topg':['bed','BedrockElevation']} #NOTE: topgerr accounts for ~10 min. of the runtime.
+    # base_vars = {'topg':['bed','BedrockElevation']}
+    # NOTE: topgerr accounts for ~10 min. of the runtime.
     base_vars = {
         "topg": ["bed", "BedrockElevation"],
         "topgerr": ["errbed", "BedrockError"],
@@ -261,6 +265,15 @@ def mcb_epsg3413(
         base.var.reference = "M. Morlighem, E. Rignot, J. Mouginot, H. Seroussi and E. Larour, Deeply incised submarine glacial valleys beneath the Greenland Ice Sheet, Nat. Geosci., 7, 418-422, 2014, doi:10.1038/ngeo2167, http://www.nature.com/ngeo/journal/vaop/ncurrent/full/ngeo2167.html"
 
 
+def remask(data):
+    """Make sure data mask is an array."""
+    if np.isscalar(data.mask):
+        _out = np.ma.masked_invalid(data)
+    else:
+        _out = data
+    return _out
+
+
 def mcb_bamber(
     args,
     nc_massCon,
@@ -317,12 +330,15 @@ def mcb_bamber(
     massCon.yx[:, 0] = massCon.y_grid.ravel()
     massCon.yx[:, 1] = massCon.x_grid.ravel()
 
-    massCon.tree = scipy.spatial.cKDTree(massCon.yx)
+    speak.verbose(args, "   Generating Tree")
+    # massCon.tree = scipy.spatial.cKDTree(massCon.yx, leafsize=1024)
+    massCon.tree = KDTree(massCon.yx, leafsize=512)
 
     trans.yx = np.ndarray((len(trans.y_grid.ravel()), 2))
     trans.yx[:, 0] = trans.y_grid.ravel()
     trans.yx[:, 1] = trans.x_grid.ravel()
 
+    speak.verbose(args, "   Querying Tree")
     trans.qd, trans.qi = massCon.tree.query(
         trans.yx, k=1
     )  # nearest neighbor in massCon for transformed base grid
@@ -356,21 +372,38 @@ def mcb_bamber(
     )
 
     pri_data = np.ma.masked_equal(nc_massCon.variables["bed"][::-1, :], -9999)
+    pri_data = remask(pri_data)
+
     sec_data = np.ma.masked_values(
         nc_bamber.variables["BedrockElevation"][:, :], -9999.0
     )
+    sec_data = remask(sec_data)
+
     new_data = np.ma.array(np.zeros(base.dims), mask=np.zeros(base.dims))
 
     pri_err = np.ma.masked_equal(
         nc_massCon.variables["errbed"][::-1, :], -9999
     )
+    pri_err = remask(pri_err)
+
     sec_err = np.ma.masked_values(
         nc_bamber.variables["BedrockError"][:, :], -9999.0
     )
-    new_err = np.ma.array(np.zeros(base.dims), mask=np.zeros(base.dims))
+    sec_err = remask(sec_err)
 
-    for ii in range(0, base.ny):
-        for jj in range(0, base.nx):
+    new_err = np.ma.array(np.zeros(base.dims), mask=np.zeros(base.dims))
+    speak.verbose(args, f"      Loop over {base.ny} y, {base.nx} x")
+
+    _, _, td = pyproj.transform(
+        proj_eigen_gl04c,
+        proj_epsg3413,
+        base.x_grid,  # [ii, jj],
+        base.y_grid,  # [ii, jj],
+        sec_data,  # [ii, jj],
+    )
+    for ii in tqdm(range(0, base.ny), desc="Y loop"):
+        for jj in tqdm(range(0, base.nx), desc="X loop", leave=False):
+
             # make sure inside priority grid (massCon)
             if (
                 trans.y_grid[ii, jj] < massCon.y_grid[0, 0]
@@ -382,14 +415,14 @@ def mcb_bamber(
                     new_err.mask[ii, jj] = True
                     continue
                 else:
-                    tx, ty, td = pyproj.transform(
-                        proj_eigen_gl04c,
-                        proj_epsg3413,
-                        base.x_grid[ii, jj],
-                        base.y_grid[ii, jj],
-                        sec_data[ii, jj],
-                    )
-                    new_data[ii, jj] = td
+                    # tx, ty, td = pyproj.transform(
+                    #     proj_eigen_gl04c,
+                    #     proj_epsg3413,
+                    #     base.x_grid[ii, jj],
+                    #     base.y_grid[ii, jj],
+                    #     sec_data[ii, jj],
+                    # )
+                    new_data[ii, jj] = td[ii, jj]
                     new_err[ii, jj] = sec_err[ii, jj]
                     continue
 
@@ -403,14 +436,14 @@ def mcb_bamber(
                     new_err.mask[ii, jj] = True
                     continue
                 else:
-                    tx, ty, td = pyproj.transform(
-                        proj_eigen_gl04c,
-                        proj_epsg3413,
-                        base.x_grid[ii, jj],
-                        base.y_grid[ii, jj],
-                        sec_data[ii, jj],
-                    )
-                    new_data[ii, jj] = td
+                    # tx, ty, td = pyproj.transform(
+                    #     proj_eigen_gl04c,
+                    #     proj_epsg3413,
+                    #     base.x_grid[ii, jj],
+                    #     base.y_grid[ii, jj],
+                    #     sec_data[ii, jj],
+                    # )
+                    new_data[ii, jj] = td[ii, jj]
                     new_err[ii, jj] = sec_err[ii, jj]
                     continue
 
@@ -444,11 +477,15 @@ def mcb_bamber(
             # |      |
             # 0 ---- 1
             #
-            # Numbering in other quadrents is the reflection through the axis or axes
+            # Numbering in other quadrents is the
+            # reflection through the axis or axes
             # with negitive skip values (i_s or j_s).
-            missing_points, interp_dict = interp.check_missing(
-                pri_data, (nn_ii, nn_jj), i_s, j_s
-            )
+            try:
+                missing_points, interp_dict = interp.check_missing(
+                    pri_data, (nn_ii, nn_jj), i_s, j_s
+                )
+            except IndexError:
+                breakpoint()
             missing_err_pts, err_dict = interp.check_missing(
                 pri_err, (nn_ii, nn_jj), i_s, j_s
             )
@@ -458,21 +495,16 @@ def mcb_bamber(
                 pass
 
             elif not sec_data.mask[ii, jj]:
-                tx, ty, td = pyproj.transform(
-                    proj_eigen_gl04c,
-                    proj_epsg3413,
-                    base.x_grid[ii, jj],
-                    base.y_grid[ii, jj],
-                    sec_data[ii, jj],
-                )
+
                 if len(missing_points) <= 3:
                     for point in missing_points:
-                        # use secondary data at (ii,jj) for missing points, but keep same interp weight!
-                        interp_dict[point] = td
+                        # use secondary data at (ii,jj) for missing points,
+                        # but keep same interp weight!
+                        interp_dict[point] = td[ii, jj]
                         err_dict[point] = sec_err[ii, jj]
 
                 else:
-                    new_data[ii, jj] = td
+                    new_data[ii, jj] = td[ii, jj]
                     new_err[ii, jj] = sec_err[ii, jj]
                     continue
 
@@ -508,6 +540,7 @@ def mcb_bamber(
             missing_points = None
             interp_dict = None
             err_dict = None
+
     # now transform new data back to bamber grid.
     temp_x_grid, temp_y_grid, temp_data = pyproj.transform(
         proj_epsg3413,

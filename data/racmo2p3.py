@@ -37,6 +37,7 @@ import pyproj
 from util.ncfunc import copy_atts_bad_fill
 from util import speak
 from util import projections
+from pykdtree.kdtree import KDTree
 
 
 def acab_epsg3413(args, nc_racmo, nc_base, base):
@@ -116,9 +117,20 @@ def acab_bamber(args, nc_racmo2p3, nc_base, base):
     proj_greenland = projections.greenland()
     base_vars = {"acab": "SMB_rec"}
 
+    x_t, y_t = pyproj.transform(
+        proj_greenland[0], proj_greenland[1], x=x2d.flatten(), y=y2d.flatten(),
+    )
+
+    # transform_tree = scipy.spatial.cKDTree(np.vstack((x_t, y_t)).T)
+    transform_tree = KDTree(np.vstack((x_t, y_t)).T)
+
+    qd, qi = transform_tree.query(
+        np.vstack((base.x_grid.flatten(), base.y_grid.flatten())).T, k=1,
+    )
+
     for bvar, rvar in base_vars.items():
         speak.verbose(
-            args, f"   Interpolating {bvar} and writing {rvar} to base."
+            args, f"   Interpolating {rvar} and writing {bvar} to base."
         )
         z_in = nc_racmo2p3.variables[rvar][0, ...]
 
@@ -132,12 +144,6 @@ def acab_bamber(args, nc_racmo2p3, nc_base, base):
 
         z_t = z_t.reshape(z_in.shape)
 
-        transform_tree = scipy.spatial.cKDTree(np.vstack((x_t, y_t)).T)
-        qd, qi = transform_tree.query(
-            np.vstack((base.x_grid.flatten(), base.y_grid.flatten())).T,
-            n_jobs=-1,
-            k=1,
-        )
         z_interp = z_t.flatten()[qi].reshape(base.y_grid.shape)
 
         base.var = nc_base.createVariable(bvar, "f4", ("y", "x",))

@@ -77,6 +77,7 @@ from util.ncfunc import copy_atts
 from util import projections
 import util.interpolate as interp
 from util.ncfunc import copy_atts_bad_fill
+from pykdtree.kdtree import KDTree
 
 
 def velocity_epsg3413(args, nc_insar, nc_base, base):
@@ -147,24 +148,23 @@ def velocity_bamber(args, nc_insar, nc_base, trans):
     x2d, y2d = np.meshgrid(x_in, y_in)
 
     x_t, y_t = pyproj.transform(
-        proj_greenland[0], proj_greenland[1], x=x2d.flatten(), y=y2d.flatten(),
+        proj_greenland[0], proj_greenland[0], x=x2d.flatten(), y=y2d.flatten(),
     )
 
     speak.notquiet(args, "    Generate tree")
-    transform_tree = scipy.spatial.cKDTree(np.vstack((x_t, y_t)).T)
+    # transform_tree = scipy.spatial.cKDTree(np.vstack((x_t, y_t)).T)
+    transform_tree = KDTree(np.vstack((x_t, y_t)).T)
 
     speak.notquiet(args, "    Query tree")
     qd, qi = transform_tree.query(
-        np.vstack((trans.x_grid.flatten(), trans.y_grid.flatten())).T,
-        n_jobs=-1,
-        k=1,
+        np.vstack((trans.x_grid.flatten(), trans.y_grid.flatten())).T, k=1,
     )
 
     base_vars = {"vy": "vy", "vx": "vx", "ey": "ey", "ex": "ex"}
 
     for bvar, rvar in base_vars.items():
         speak.notquiet(
-            args, f"   Interpolating {bvar} and writing {rvar} to base."
+            args, f"   Interpolating {rvar} and writing {bvar} to base."
         )
 
         z_in = nc_insar.variables[rvar][:]
@@ -185,6 +185,7 @@ def velocity_bamber(args, nc_insar, nc_base, trans):
         trans.var[:] = z_interp[:]
         copy_atts_bad_fill(nc_insar.variables[rvar], trans.var, 9.96921e36)
         trans.var.comments = "Nearest neighbour remapping"
+        trans.var.grid_mapping = "mcb"
 
 
 def velocity_bamber_old(args, nc_insar, nc_base, trans):
