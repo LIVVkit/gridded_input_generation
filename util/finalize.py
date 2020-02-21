@@ -85,6 +85,7 @@ def add_time_and_shrink(args, proj_name, f_base, f_1km, f_template, f_shrink):
     time[0] = 0.0
 
     if proj_name in nc_base.variables:
+        speak.verbose(args, f"   CREATE {proj_name} variable")
         base.proj = nc_base.variables[proj_name]
         proj = nc_1km.createVariable(proj_name, "b")
         copy_atts(base.proj, proj)
