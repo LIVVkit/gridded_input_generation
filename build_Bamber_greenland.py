@@ -4,6 +4,7 @@ import os
 import datetime
 import subprocess
 import argparse
+import xarray as xr
 
 from util import speak
 from util import finalize
@@ -33,7 +34,8 @@ lc_racmo2p3 = "data/RACMO2.3/smb_1km_GrIS_downscaled_RACMO2_3.nc"
 # NOTE:  will build this file from mosaicOffsets.* files
 lc_InSAR = "data/InSAR/Joughin2015/greenland_vel_mosaic500.nc"
 
-lc_massCon = "data/IceBridge/Greenland/MCdataset-2014-11-19.nc"
+lc_massCon = "data/150m-MC-thickness/BedMachineGreenland-2017-09-20.nc"
+# lc_massCon = "data/IceBridge/Greenland/MCdataset-2014-11-19.nc"
 lc_mask = "data/Ice2Sea/ice2sea_Greenland_geometry_icesheet_mask_Zurich.nc"
 
 
@@ -41,7 +43,8 @@ lc_mask = "data/Ice2Sea/ice2sea_Greenland_geometry_icesheet_mask_Zurich.nc"
 # get args, time
 # load data sets
 # ================
-stamp = datetime.date.today().strftime("%Y_%m_%d")
+# stamp = datetime.date.today().strftime("%Y_%m_%d_%H%M")
+stamp = datetime.datetime.now().strftime("%Y_%m_%d_%H%M")
 f_base = "templates/greenland_1km.mcb.nc"
 
 # parse the command line arguments
@@ -52,7 +55,10 @@ parser.add_argument(
     "--shrink",
     type=cats.abs_existing_file,
     default="data/BamberDEM/Bambergrid_shrunk.json",
-    help="JSON description of the shrunken grid specs. Use plot_grids.py to create this file.",
+    help=(
+        "JSON description of the shrunken grid specs. Use plot_grids.py "
+        "to create this file."
+    ),
 )
 
 volume = parser.add_mutually_exclusive_group()
@@ -109,6 +115,7 @@ speak.verbose(args, "   Found Mass Conserving Bed data")
 
 nc_mask = get_nc_file(lc_mask, "r")
 speak.verbose(args, "   Found Zurich mask")
+nc_mask.close()
 
 speak.verbose(args, "\n   All data files found!")
 
@@ -143,6 +150,12 @@ trans = projections.transform(base, proj_eigen_gl04c, proj_epsg3413)
 
 speak.notquiet(args, "   Done!")
 
+speak.notquiet(args, "\nAdding the lon / lat dimension")
+projections.grid_center_latlons(
+    nc_base, base, proj_eigen_gl04c, "mcb", ("y", "x")
+)
+speak.notquiet(args, "   Done!")
+
 # ==== SeaRise Data =====
 # this is a 1km dataset
 # =======================
@@ -172,7 +185,8 @@ nc_insar.close()
 # This is the new (2015) bed data
 # =================================
 speak.notquiet(
-    args, "\nGetting thk, topg, and topgerr from the mass conserving bed data."
+    args,
+    "\nGetting thk, topg, and topgerr from the mass conserving bed data.",
 )
 
 icebridge.mcb_bamber(
@@ -188,6 +202,7 @@ icebridge.mcb_bamber(
 
 nc_bamber.close()
 nc_massCon.close()
+
 # ==== Zurich mask =====
 # apply mask, and get
 # new surface variable
@@ -198,12 +213,19 @@ base = None
 nc_base.close()  # need to read in some data from nc_base now
 nc_base = get_nc_file(f_base, "r+")
 
+nc_mask = xr.open_dataset(lc_mask)
 ice2sea.apply_mask(args, nc_mask, nc_base)
 
 nc_mask.close()
 # ==== Done getting data ====
 # ===========================
+for var in nc_base.variables:
+    if var != "mcb":
+        nc_base[var].grid_mapping = "mcb"
+
 nc_base.close()
+
+speak.notquiet(args, "   Done!")
 
 # ==== add time dim and shrink ====
 # apply to all the variables and
@@ -214,11 +236,9 @@ speak.notquiet(
 )
 
 f_1km = "complete/greenland_1km_" + stamp + ".mcb.nc"
-f_template = "greenland.mcb.config"
+f_template = "templates/greenland.mcb.config"
 
-finalize.add_time_and_shrink(
-    args, "bamber", f_base, f_1km, f_template, f_shrink
-)
+finalize.add_time_and_shrink(args, "mcb", f_base, f_1km, f_template, f_shrink)
 
 # ==== Coarsen ====
 # make 2, 4 and 8
@@ -228,7 +248,7 @@ speak.notquiet(args, "\nCreating coarser datasets.")
 
 coarse_list = [2, 4, 5, 8]  # in km
 
-finalize.coarsen(args, "bamber", f_1km, f_template, coarse_list)
+finalize.coarsen(args, "mcb", f_1km, f_template, coarse_list)
 
 # ==== and done! ====
 # ===================
