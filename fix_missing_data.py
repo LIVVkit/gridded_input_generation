@@ -45,7 +45,7 @@ for data_file in data_files:
         dat[var] = dat[var].assign_attrs(
             {
                 "missing_value": np.float32(masked_vars[var]),
-                "_FillValue": np.float32(masked_vars[var])
+                "_FillValue": np.float32(masked_vars[var]),
             }
         )
 dat["x1"] = dat["x1"].assign_attrs({"axis": "X"})
@@ -53,9 +53,13 @@ dat["y1"] = dat["y1"].assign_attrs({"axis": "Y"})
 
 if grid == "mcb":
     dat["usrf"] = dat["usrf"].assign_attrs({"units": "m"})
-    dat["acab"] = dat["acab"].assign_attrs({"_FillValue": dat["acab"].missing_value})
+    dat["acab"] = dat["acab"].assign_attrs(
+        {"_FillValue": dat["acab"].missing_value}
+    )
     dat["bheatflx"] = dat["bheatflx"].assign_attrs(
-        {"standard_name": "upward_geothermal_heat_flux_at_ground_level_in_land_ice"}
+        {
+            "standard_name": "upward_geothermal_heat_flux_at_ground_level_in_land_ice"
+        }
     )
 
 if grid == "epsg3413":
