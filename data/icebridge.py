@@ -362,6 +362,12 @@ def mcb_bamber(
     speak.verbose(args, "   Writing thk to base.")
     base.thk = nc_base.createVariable("thk", "f4", ("y", "x",))
     base.thk[:, :] = trans.thk[:, :]
+    try:
+        base.thk.reference = nc_massCon.Data_citation
+    except AttributeError:
+        # Attribute not there...set it somewhere else
+        print("THICKNESS DATA CITATION NOT FOUND")
+        pass
     copy_atts_bad_fill(massCon.thickness, base.thk, -9999.0)
 
     speak.verbose(args, "   Interpolating, with priority, topg and topgerr.")
