@@ -79,6 +79,8 @@ import util.interpolate as interp
 from util.ncfunc import copy_atts_bad_fill
 from pykdtree.kdtree import KDTree
 
+MISSING_VAL = 2.0e36
+
 
 def velocity_epsg3413(args, nc_insar, nc_base, base):
     insar = projections.DataGrid()
@@ -114,12 +116,12 @@ def velocity_epsg3413(args, nc_insar, nc_base, base):
         sys.stdout.write("\r   [%-60s] %d%%\n" % ("=" * 60, 100.0))
         sys.stdout.flush()
 
-        base_data[base_data < data_min] = -2.0e9
-        base_data[base_data > data_max] = -2.0e9
+        base_data[base_data < data_min] = MISSING_VAL
+        base_data[base_data > data_max] = MISSING_VAL
 
         base.var = nc_base.createVariable(var, "f4", ("y", "x",))
         base.var[:] = base_data[:]
-        copy_atts(nc_insar.variables[var], base.var)
+        copy_atts_bad_fill(nc_insar.variables[var], base.var, MISSING_VAL)
         base.var.grid_mapping = "epsg_3413"
         base.var.coordinates = "lon lat"
 
@@ -142,6 +144,7 @@ def velocity_bamber(args, nc_insar, nc_base, trans):
         A DataGrid() class instance that holds the base data grid information.
 
     """
+
     proj_greenland = projections.greenland()
     x_in = nc_insar.variables["x"][:]
     y_in = nc_insar.variables["y"][:]
@@ -178,12 +181,18 @@ def velocity_bamber(args, nc_insar, nc_base, trans):
         )
 
         z_t = z_t.reshape(z_in.shape)
-
+        z_t = z_t.filled(MISSING_VAL)
         z_interp = z_t.flatten()[qi].reshape(trans.y_grid.shape)
+
+        # try:
+        #     _fillval = nc_insar.variables[rvar].getncattr("_FillValue")
+        # except AttributeError:
+        #     _fillval = nc_insar.variables[rvar].getncattr("MISSING_VALue")
+        # z_interp[np.where(z_interp == _fillval)] = MISSING_VAL
 
         trans.var = nc_base.createVariable(bvar, "f4", ("y", "x",))
         trans.var[:] = z_interp[:]
-        copy_atts_bad_fill(nc_insar.variables[rvar], trans.var, 9.96921e36)
+        copy_atts_bad_fill(nc_insar.variables[rvar], trans.var, MISSING_VAL)
         trans.var.comments = "Nearest neighbour remapping"
         trans.var.grid_mapping = "mcb"
 

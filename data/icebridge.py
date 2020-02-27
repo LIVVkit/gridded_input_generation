@@ -53,6 +53,8 @@ import util.interpolate as interp
 
 from pykdtree.kdtree import KDTree
 
+MISSING_VAL = 2.0e36
+
 
 def mcb_epsg3413(
     args, nc_massCon, nc_bamber, nc_base, base, proj_epsg3413, proj_eigen_gl04c
@@ -64,6 +66,7 @@ def mcb_epsg3413(
     base dataset as `thk`. NetCDF attributes are mostly preserved, but the data
     is changed from type short to type float. 
     """
+
     massCon = projections.DataGrid()
     massCon.y = nc_massCon.variables["y"]
     massCon.x = nc_massCon.variables["x"]
@@ -99,7 +102,7 @@ def mcb_epsg3413(
         )
     sys.stdout.write("\r   [%-60s] %d%%\n" % ("=" * 60, 100.0))
     sys.stdout.flush()
-    copy_atts_bad_fill(massCon.thickness, base.thk, -9999.0)
+    copy_atts_bad_fill(massCon.thickness, base.thk, MISSING_VAL)
     base.thk.grid_mapping = "epsg_3413"
     base.thk.coordinates = "lon lat"
     base.thk.reference = "M. Morlighem, E. Rignot, J. Mouginot, H. Seroussi and E. Larour, Deeply incised submarine glacial valleys beneath the Greenland Ice Sheet, Nat. Geosci., 7, 418-422, 2014, doi:10.1038/ngeo2167, http://www.nature.com/ngeo/journal/vaop/ncurrent/full/ngeo2167.html"
@@ -248,17 +251,17 @@ def mcb_epsg3413(
         # print(msk.size)
         # pp(msk)
 
-        base_bamber[~msk] = -9999.0
+        base_bamber[~msk] = MISSING_VAL
 
         # NOTE: Make sure all values fall within a reasonable range as
         #      RectBivariateSpine interps using the missing values
-        base_bamber[base_bamber < rng[0]] = -9999.0
-        base_bamber[base_bamber > rng[1]] = -9999.0
+        base_bamber[base_bamber < rng[0]] = MISSING_VAL
+        base_bamber[base_bamber > rng[1]] = MISSING_VAL
 
         base.var = nc_base.createVariable(var, "f4", ("y", "x",))
         base.var[:] = base_bamber[:]
         copy_atts_bad_fill(
-            nc_massCon.variables[var_list[0]], base.var, -9999.0
+            nc_massCon.variables[var_list[0]], base.var, MISSING_VAL
         )
         base.var.grid_mapping = "epsg_3413"
         base.var.coordinates = "lon lat"
@@ -368,7 +371,7 @@ def mcb_bamber(
         # Attribute not there...set it somewhere else
         print("THICKNESS DATA CITATION NOT FOUND")
         pass
-    copy_atts_bad_fill(massCon.thickness, base.thk, -9999.0)
+    copy_atts_bad_fill(massCon.thickness, base.thk, MISSING_VAL)
 
     speak.verbose(args, "   Interpolating, with priority, topg and topgerr.")
     speak.verbose(args, "      Primary Data [IceBridge]:  bed and errbed.")
@@ -381,7 +384,7 @@ def mcb_bamber(
     pri_data = remask(pri_data)
 
     sec_data = np.ma.masked_values(
-        nc_bamber.variables["BedrockElevation"][:, :], -9999.0
+        nc_bamber.variables["BedrockElevation"][:, :], -9999
     )
     sec_data = remask(sec_data)
 
@@ -393,7 +396,7 @@ def mcb_bamber(
     pri_err = remask(pri_err)
 
     sec_err = np.ma.masked_values(
-        nc_bamber.variables["BedrockError"][:, :], -9999.0
+        nc_bamber.variables["BedrockError"][:, :], -9999
     )
     sec_err = remask(sec_err)
 
@@ -486,12 +489,9 @@ def mcb_bamber(
             # Numbering in other quadrents is the
             # reflection through the axis or axes
             # with negitive skip values (i_s or j_s).
-            try:
-                missing_points, interp_dict = interp.check_missing(
-                    pri_data, (nn_ii, nn_jj), i_s, j_s
-                )
-            except IndexError:
-                breakpoint()
+            missing_points, interp_dict = interp.check_missing(
+                pri_data, (nn_ii, nn_jj), i_s, j_s
+            )
             missing_err_pts, err_dict = interp.check_missing(
                 pri_err, (nn_ii, nn_jj), i_s, j_s
             )
@@ -559,9 +559,11 @@ def mcb_bamber(
 
     speak.verbose(args, "   Writing topg topgerr to base.")
     base.topg = nc_base.createVariable("topg", "f4", ("y", "x",))
-    base.topg[:, :] = new_data.filled(-9999.0)[:, :]
-    copy_atts_bad_fill(nc_massCon.variables["bed"], base.topg, -9999.0)
+    base.topg[:, :] = new_data.filled(MISSING_VAL)[:, :]
+    copy_atts_bad_fill(nc_massCon.variables["bed"], base.topg, MISSING_VAL)
 
     base.topgerr = nc_base.createVariable("topgerr", "f4", ("y", "x",))
-    base.topgerr[:, :] = new_err.filled(-9999.0)[:, :]
-    copy_atts_bad_fill(nc_massCon.variables["errbed"], base.topgerr, -9999.0)
+    base.topgerr[:, :] = new_err.filled(MISSING_VAL)[:, :]
+    copy_atts_bad_fill(
+        nc_massCon.variables["errbed"], base.topgerr, MISSING_VAL
+    )

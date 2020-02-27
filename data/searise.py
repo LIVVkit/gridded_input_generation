@@ -109,8 +109,9 @@ def bheatflx_artm_epsg3413(
             base_bamber, mask=np.logical_or(base_y_mask.mask, base_x_mask.mask)
         )
 
+        missing_value = 2e36
         if base_var != "bheatflx":
-            base_bamber[base_masked.mask] = -9999.0
+            base_bamber[base_masked.mask] = missing_value
 
         base.var = nc_base.createVariable(base_var, "f4", ("y", "x",))
         if base_var == "bheatflx":
@@ -118,7 +119,9 @@ def bheatflx_artm_epsg3413(
         else:
             base.var[:] = base_bamber[:]
 
-        copy_atts_add_fill(nc_seaRise.variables[sea_var], base.var, -9999.0)
+        copy_atts_add_fill(
+            nc_seaRise.variables[sea_var], base.var, missing_value
+        )
         base.var.grid_mapping = "epsg_3413"
         base.var.coordinates = "lon lat"
 
@@ -166,7 +169,7 @@ def bheatflx_artm_bamber(args, nc_seaRise, nc_base, base):
     speak.verbose(args, "   Writing bheatflx to base.")
     base_bheatflx = nc_base.createVariable("bheatflx", "f4", ("y", "x",))
     base_bheatflx[:, :] = seaRise_data[:, :]
-    copy_atts(seaRise_bheatflx, base_bheatflx)
+    copy_atts_add_fill(seaRise_bheatflx, base_bheatflx, 2e36)
 
     # get annual mean air temperature (2m)
     # -------------------------------------
@@ -180,4 +183,4 @@ def bheatflx_artm_bamber(args, nc_seaRise, nc_base, base):
     speak.verbose(args, "   Writing artm to base.")
     base_artm = nc_base.createVariable("artm", "f4", ("y", "x",))
     base_artm[:, :] = seaRise_data[:, :]
-    copy_atts(seaRise_presartm, base_artm)
+    copy_atts_add_fill(seaRise_presartm, base_artm, 2e36)

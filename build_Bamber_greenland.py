@@ -96,7 +96,6 @@ speak.verbose(args, "   Found Sea Rise data")
 nc_racmo2p3 = get_nc_file(lc_racmo2p3, "r")
 speak.verbose(args, "   Found RACMO 2.3 data")
 
-
 try:
     nc_insar = get_nc_file(lc_InSAR, "r")
 except Exception:

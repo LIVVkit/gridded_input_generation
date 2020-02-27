@@ -212,10 +212,10 @@ def plot_sideby(ref, test, cmn_vars, skip=1):
         # We need to mask invalid data, and compress to just the non-masked
         # values, so that the percentiles don't come out as NaNs
         _masktest = np.ma.masked_greater(
-            np.ma.masked_invalid(test[var].values.ravel()), 1e20
+            np.ma.masked_invalid(test[var].values.ravel()), 1e36
         ).compressed()
         _maskref = np.ma.masked_greater(
-            np.ma.masked_invalid(test[var].values.ravel()), 1e20
+            np.ma.masked_invalid(test[var].values.ravel()), 1e36
         ).compressed()
 
         axes[3].boxplot(
@@ -256,8 +256,8 @@ def annote(data):
 
     if any(np.isnan(data)):
         str_out += "MASK NaN\n"
-    if any(data > 1e20):
-        str_out += "MASK >1e20"
+    if any(data > 1e36):
+        str_out += "MASK >1e36"
     if str_out == "":
         str_out = "NO MASK"
 
@@ -272,7 +272,8 @@ def main():
 
     # Test Bamber grid
     ref_file = "complete/greenland_8km_2016_12_01.mcb.nc"
-    test_file = "complete/greenland_8km_2020_02_21.mcb.nc"
+    # test_file = "complete/greenland_8km_2020_02_21.mcb.nc"
+    test_file = "complete/greenland_8km_2020_02_27_1038.mcb.nc"
 
     # Test EPSG:3413 grid
     # ref_file = "complete/greenland_8km_2017_06_27.epsg3413.nc"

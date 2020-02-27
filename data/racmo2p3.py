@@ -39,6 +39,8 @@ from util import speak
 from util import projections
 from pykdtree.kdtree import KDTree
 
+MISSING_VAL = 2.0e36
+
 
 def acab_epsg3413(args, nc_racmo, nc_base, base):
     racmo = projections.DataGrid()
@@ -77,12 +79,12 @@ def acab_epsg3413(args, nc_racmo, nc_base, base):
         sys.stdout.write("\r   [%-60s] %d%%\n" % ("=" * 60, 100.0))
         sys.stdout.flush()
 
-        base_data[base_data < data_min] = 9.96921e36
-        base_data[base_data > data_max] = 9.96921e36
+        base_data[base_data < data_min] = MISSING_VAL
+        base_data[base_data > data_max] = MISSING_VAL
 
         base.var = nc_base.createVariable(bvar, "f4", ("y", "x",))
         base.var[:] = base_data[:]
-        copy_atts_bad_fill(nc_racmo.variables[rvar], base.var, 9.96921e36)
+        copy_atts_bad_fill(nc_racmo.variables[rvar], base.var, MISSING_VAL)
         base.var.long_name = "Water Equivalent Surface Mass Balance"
         base.var.standard_name = "land_ice_lwe_surface_specific_mass_balance"
         base.var.units = "mm/year"
@@ -143,12 +145,20 @@ def acab_bamber(args, nc_racmo2p3, nc_base, base):
         )
 
         z_t = z_t.reshape(z_in.shape)
+        z_t = z_t.filled(MISSING_VAL)
 
         z_interp = z_t.flatten()[qi].reshape(base.y_grid.shape)
-
         base.var = nc_base.createVariable(bvar, "f4", ("y", "x",))
         base.var[:] = z_interp[:]
-        copy_atts_bad_fill(nc_racmo2p3.variables[rvar], base.var, 9.96921e36)
+
+        # If there are missing values from the original dataset, update the
+        # fill value to something easy
+        z_interp[
+            np.where(
+                z_interp == nc_racmo2p3.variables[rvar].getncattr("_FillValue")
+            )
+        ] = MISSING_VAL
+        copy_atts_bad_fill(nc_racmo2p3.variables[rvar], base.var, MISSING_VAL)
 
         base.var.long_name = "Water Equivalent Surface Mass Balance"
         base.var.standard_name = "land_ice_lwe_surface_specific_mass_balance"
