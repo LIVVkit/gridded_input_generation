@@ -39,7 +39,7 @@ from util import speak
 from util import projections
 from pykdtree.kdtree import KDTree
 
-MISSING_VAL = 2.0e36
+MISSING_VAL = np.float32(2.0e36)
 
 
 def acab_epsg3413(args, nc_racmo, nc_base, base):
@@ -87,7 +87,7 @@ def acab_epsg3413(args, nc_racmo, nc_base, base):
         copy_atts_bad_fill(nc_racmo.variables[rvar], base.var, MISSING_VAL)
         base.var.long_name = "Water Equivalent Surface Mass Balance"
         base.var.standard_name = "land_ice_lwe_surface_specific_mass_balance"
-        base.var.units = "mm/year"
+        base.var.units = "mm year-1"
         base.var.grid_mapping = "epsg_3413"
         base.var.coordinates = "lon lat"
         base.var.source = "Jan Lenaerts"
@@ -117,7 +117,7 @@ def acab_bamber(args, nc_racmo2p3, nc_base, base):
     x2d, y2d = np.meshgrid(x_in, y_in)
 
     proj_greenland = projections.greenland()
-    base_vars = {"acab": "SMB_rec"}
+    base_vars = {"smb": "SMB_rec"}
 
     x_t, y_t = pyproj.transform(
         proj_greenland[0], proj_greenland[1], x=x2d.flatten(), y=y2d.flatten(),

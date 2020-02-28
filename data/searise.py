@@ -122,6 +122,10 @@ def bheatflx_artm_epsg3413(
         copy_atts_add_fill(
             nc_seaRise.variables[sea_var], base.var, missing_value
         )
+        if base_var == "bheatflx":
+            base.var.standard_name = (
+                "upward_geothermal_heat_flux_at_ground_level_in_land_ice"
+            )
         base.var.grid_mapping = "epsg_3413"
         base.var.coordinates = "lon lat"
 
@@ -170,6 +174,9 @@ def bheatflx_artm_bamber(args, nc_seaRise, nc_base, base):
     base_bheatflx = nc_base.createVariable("bheatflx", "f4", ("y", "x",))
     base_bheatflx[:, :] = seaRise_data[:, :]
     copy_atts_add_fill(seaRise_bheatflx, base_bheatflx, 2e36)
+    base_bheatflx.standard_name = (
+        "upward_geothermal_heat_flux_at_ground_level_in_land_ice"
+    )
 
     # get annual mean air temperature (2m)
     # -------------------------------------

@@ -69,3 +69,7 @@ def apply_mask(args, nc_mask, nc_base):
     speak.verbose(args, "   Creating usrf.")
     base_usrf = nc_base.createVariable("usrf", "f4", ("y", "x",))
     base_usrf[:, :] = thk_data + topg_data
+    try:
+        base_usrf.units = base_thk.units
+    except AttributeError:
+        base_usrf.units = "m"

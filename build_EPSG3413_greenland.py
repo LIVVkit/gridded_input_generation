@@ -250,8 +250,19 @@ if not args.use_template:
 speak.notquiet(
     args, "\nAdding the time dimension and creating the 1km dataset."
 )
+# Write file-level metadata
+output_metadata = {
+    "title": "CISM-style input dataset for ice-sheet models",
+    "history": "Created {} by M. Kelleher & J. Kennedy.".format(
+        datetime.datetime.now().strftime("%Y-%m-%d")
+    ),
+    "institution": "Oak Ridge National Laboratory",
+    "references": "https://github.com/LIVVkit/gridded_input_generation",
+    "Conventions": "CF-1.7",
+}
+
 finalize.add_time_and_shrink(
-    args, "epsg_3413", f_base, f_1km, f_template, f_shrink
+    args, "epsg_3413", f_base, f_1km, f_template, f_shrink, output_metadata
 )
 
 

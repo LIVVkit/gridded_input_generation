@@ -10,7 +10,9 @@ from util.projections import DataGrid
 from templates import config
 
 
-def add_time_and_shrink(args, proj_name, f_base, f_1km, f_template, f_shrink):
+def add_time_and_shrink(
+    args, proj_name, f_base, f_1km, f_template, f_shrink, file_meta
+):
     """Add the time dimension to a EPSG:3413 1km dataset and write config files. 
 
     This function opens the base dataset, creates a new 1km dataset with the time
@@ -93,7 +95,7 @@ def add_time_and_shrink(args, proj_name, f_base, f_1km, f_template, f_shrink):
     for var_name, var_data in nc_base.variables.items():
         if var_name not in ["x", "y", "lat", "lon", proj_name]:
             var_1km = nc_1km.createVariable(
-                var_name, "f4", ("time", "y1", "x1",)
+                var_name, "f4", ("time", "y1", "x1")
             )
             copy_atts(var_data, var_1km)
             var_1km[0, :, :] = var_data[
@@ -106,6 +108,17 @@ def add_time_and_shrink(args, proj_name, f_base, f_1km, f_template, f_shrink):
             var_1km[:, :] = var_data[
                 y_shrink[0] : y_shrink[1], x_shrink[0] : x_shrink[1]
             ]
+
+    # Set file-level metadata
+    for attr in file_meta:
+        nc_1km.setncattr(attr, file_meta[attr])
+
+    # No grid mapping attribute on coordinate variables
+    for coord in ["lon", "lat", "x1", "y1", "x", "y"]:
+        try:
+            del nc_1km[coord].grid_mapping
+        except (RuntimeError, IndexError):
+            continue
 
     nc_base.close()
     nc_1km.close()

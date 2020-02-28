@@ -175,7 +175,7 @@ nc_seaRise.close()
 # ==== RACMO2.0 Data =====
 # this is a 1km dataset
 # ========================
-speak.notquiet(args, "\nGetting acab from the RACMO 2.0 data.")
+speak.notquiet(args, "\nGetting acab from the RACMO 2.3 data.")
 
 racmo2p3.acab_bamber(args, nc_racmo2p3, nc_base, base)
 
@@ -238,7 +238,7 @@ nc_mask.close()
 # ==== Done getting data ====
 # ===========================
 for var in nc_base.variables:
-    if var != "mcb":
+    if var not in ["mcb", "lon", "lat", "x1", "y1"]:
         nc_base[var].grid_mapping = "mcb"
 
 nc_base.close()
@@ -255,8 +255,20 @@ speak.notquiet(
 
 f_1km = "complete/greenland_1km_" + stamp + ".mcb.nc"
 f_template = "templates/greenland.mcb.config"
+# Write file-level metadata
+output_metadata = {
+    "title": "CISM-style input dataset for ice-sheet models",
+    "history": "Created {} by M. Kelleher & J. Kennedy.".format(
+        datetime.datetime.now().strftime("%Y-%m-%d")
+    ),
+    "institution": "Oak Ridge National Laboratory",
+    "references": "https://github.com/LIVVkit/gridded_input_generation",
+    "Conventions": "CF-1.7",
+}
 
-finalize.add_time_and_shrink(args, "mcb", f_base, f_1km, f_template, f_shrink)
+finalize.add_time_and_shrink(
+    args, "mcb", f_base, f_1km, f_template, f_shrink, output_metadata
+)
 
 # ==== Coarsen ====
 # make 2, 4 and 8

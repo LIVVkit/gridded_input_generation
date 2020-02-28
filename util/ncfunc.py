@@ -11,12 +11,13 @@ Functions list:
 """
 
 from netCDF4 import Dataset
+import numpy as np
 
 
 def get_nc_file(fname, rw):
     """Get a netcdf file.
     """
-    nc_file = Dataset(fname, rw, format='NETCDF4')
+    nc_file = Dataset(fname, rw, format="NETCDF4")
     return nc_file
 
 
@@ -41,10 +42,10 @@ def copy_atts(nc_source, nc_target):
     >>> new_var[:,:] = old_var[:,:]
     >>> copy_atts( old_var,new_var )
     """
-    
+
     # get a list of global attribute names from the incoming file
     atts = nc_source.ncattrs()
-    
+
     # place those attributes in the outgoing file
     for ii in range(len(atts)):
         nc_target.setncattr(atts[ii], nc_source.getncattr(atts[ii]))
@@ -74,16 +75,16 @@ def copy_atts_bad_fill(nc_source, nc_target, missing_value):
     >>> new_var[:,:] = old_var[:,:]
     >>> copy_atts_bad_fill( old_var,new_var, -9999. )
     """
-    
+
     # get a list of global attribute names from the incoming file
     atts = nc_source.ncattrs()
-    
+
     # place those attributes in the outgoing file
     for ii in range(len(atts)):
-        if atts[ii] != '_FillValue':
+        if atts[ii] != "_FillValue":
             nc_target.setncattr(atts[ii], nc_source.getncattr(atts[ii]))
         else:
-            nc_target.setncattr('missing_value', missing_value)
+            nc_target.setncattr("missing_value", np.float32(missing_value))
 
 
 def copy_atts_add_fill(nc_source, nc_target, missing_value):
@@ -110,12 +111,12 @@ def copy_atts_add_fill(nc_source, nc_target, missing_value):
     >>> new_var[:,:] = old_var[:,:]
     >>> copy_atts_bad_fill( old_var,new_var, -9999. )
     """
-    
+
     # get a list of global attribute names from the incoming file
     atts = nc_source.ncattrs()
-    
+
     # place those attributes in the outgoing file
     for ii in range(len(atts)):
         nc_target.setncattr(atts[ii], nc_source.getncattr(atts[ii]))
-            
-    nc_target.setncattr('missing_value', missing_value)
+
+    nc_target.setncattr("missing_value", np.float32(missing_value))

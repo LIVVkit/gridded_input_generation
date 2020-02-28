@@ -92,7 +92,7 @@ def mcb_epsg3413(
         massCon.y[::-1], massCon.x[:], massCon.thk, kx=1, ky=1, s=0
     )  # regular 2d linear interp. but faster
     base.thk = nc_base.createVariable("thk", "f4", ("y", "x",))
-    base.thk[:] = np.zeros(base.dims)
+    base.thk[:] = np.zeros(base.dims) + MISSING_VAL
     for ii in range(0, base.nx):
         ctr = (ii * 60) // base.nx
         sys.stdout.write("\r   [%-60s] %d%%" % ("=" * ctr, ctr / 60.0 * 100.0))
@@ -146,7 +146,7 @@ def mcb_epsg3413(
         sec_interp = scipy.interpolate.RectBivariateSpline(
             bamber.y[::], bamber.x[:], sec_data, kx=1, ky=1, s=0
         )  # regular 2d linear interp. but faster
-        massCon_bamber = np.zeros(massCon.dims)
+        massCon_bamber = np.zeros(massCon.dims) + MISSING_VAL
         for ii in range(0, massCon.nx):
             ctr = (ii * 60) // massCon.nx
             sys.stdout.write(
@@ -170,7 +170,7 @@ def mcb_epsg3413(
         base2bamber = projections.transform(
             base, proj_epsg3413, proj_eigen_gl04c
         )
-        base_bamber = np.zeros(base.dims)
+        base_bamber = np.zeros(base.dims) + MISSING_VAL
         for ii in range(0, base.nx):
             ctr = (ii * 60) // base.nx
             sys.stdout.write(
@@ -192,7 +192,7 @@ def mcb_epsg3413(
         pri_interp = scipy.interpolate.RectBivariateSpline(
             massCon.y[::-1], massCon.x[:], pri_data, kx=1, ky=1, s=0
         )  # regular 2d linear interp. but faster
-        base_mcb = np.zeros(base.dims)
+        base_mcb = np.zeros(base.dims) + MISSING_VAL
         for ii in range(0, base.nx):
             ctr = (ii * 60) // base.nx
             sys.stdout.write(
@@ -356,7 +356,7 @@ def mcb_bamber(
     massCon_to_base = scipy.interpolate.RectBivariateSpline(
         massCon.y[::-1], massCon.x[:], massCon.thk, kx=1, ky=1, s=0
     )  # regular 2d linear interp. but faster
-    trans.thk = np.zeros(trans.dims)
+    trans.thk = np.zeros(trans.dims) + MISSING_VAL
     for ii in range(0, base.nx):
         trans.thk[:, ii] = massCon_to_base.ev(
             trans.y_grid[:, ii], trans.x_grid[:, ii]
@@ -388,7 +388,10 @@ def mcb_bamber(
     )
     sec_data = remask(sec_data)
 
-    new_data = np.ma.array(np.zeros(base.dims), mask=np.zeros(base.dims))
+    new_data = (
+        np.ma.array(np.zeros(base.dims), mask=np.zeros(base.dims))
+        + MISSING_VAL
+    )
 
     pri_err = np.ma.masked_equal(
         nc_massCon.variables["errbed"][::-1, :], -9999
@@ -400,7 +403,10 @@ def mcb_bamber(
     )
     sec_err = remask(sec_err)
 
-    new_err = np.ma.array(np.zeros(base.dims), mask=np.zeros(base.dims))
+    new_err = (
+        np.ma.array(np.zeros(base.dims), mask=np.zeros(base.dims))
+        + MISSING_VAL
+    )
     speak.verbose(args, f"      Loop over {base.ny} y, {base.nx} x")
 
     _, _, td = pyproj.transform(
