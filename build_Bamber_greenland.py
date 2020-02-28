@@ -18,6 +18,8 @@ from data import racmo2p3
 from data import insar
 from data import icebridge
 from data import ice2sea
+from data import csatho
+
 
 """
 Build a CISM dataset
@@ -38,6 +40,10 @@ lc_massCon = "data/150m-MC-thickness/BedMachineGreenland-2017-09-20.nc"
 # lc_massCon = "data/IceBridge/Greenland/MCdataset-2014-11-19.nc"
 lc_mask = "data/Ice2Sea/ice2sea_Greenland_geometry_icesheet_mask_Zurich.nc"
 
+lc_csatho = (
+    "data/Csatho2014/GreenlandIceSheetdhdt_csatho/"
+    "greenland_ice_sheet_dhdt_icesat_atm_l1a_to_l2f.cdf"
+)
 
 # ==== SETUP =====
 # get args, time
@@ -115,6 +121,9 @@ speak.verbose(args, "   Found Mass Conserving Bed data")
 nc_mask = get_nc_file(lc_mask, "r")
 speak.verbose(args, "   Found Zurich mask")
 nc_mask.close()
+
+nc_csatho = get_nc_file(lc_csatho, "r")
+speak.verbose(args, "   Found Csatho data")
 
 speak.verbose(args, "\n   All data files found!")
 
@@ -201,6 +210,16 @@ icebridge.mcb_bamber(
 
 nc_bamber.close()
 nc_massCon.close()
+
+# == Csatho dHdt data needs to follow thickness interpolation) ==
+# Approx. 8km dataset
+# =====================
+speak.notquiet(args, "\nGetting dhdt from the Csatho data.")
+csatho.dhdt_bamber(
+    args, nc_csatho, nc_base, base, proj_epsg3413, proj_eigen_gl04c
+)
+speak.notquiet(args, "   Done!")
+nc_csatho.close()
 
 # ==== Zurich mask =====
 # apply mask, and get
