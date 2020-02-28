@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """Compare a newly generated CISM-like input dataset to an older version."""
 import logging
+from pathlib import Path
 import numpy as np
 import matplotlib
 import matplotlib.pyplot as plt
@@ -45,10 +46,8 @@ def dict_diff(attrs_ref, attrs_test):
 
                 log.info(f"   MATCH: {attr}: {_atr_ref}")
             else:
-                if isinstance(_atr_ref, str) and len(_atr_ref) > st_len:
-                    _atr_ref = f"{_atr_ref[:st_len]}..."
-                if isinstance(_atr_test, str) and len(_atr_test) > st_len:
-                    _atr_test = f"{_atr_test[:st_len]}..."
+                # If they match is fine to shorten the attr, but if they're
+                # different, print the whole thing
                 log.info(
                     f"\n   ======== DIFFERENCE: {attr} =========="
                     f"\n      REF: {_atr_ref}"
@@ -135,6 +134,7 @@ def plot_single(data, varname, title, skip=1, axes=None):
         fig = None
         single_var = False
         axes = [axes]
+
     if "missing_value" not in data[varname].attrs:
         _data = np.ma.masked_values(
             data[varname][0], data[varname][0].max()
@@ -142,6 +142,7 @@ def plot_single(data, varname, title, skip=1, axes=None):
 
     else:
         _data = data[varname][0]
+
     try:
         vmin, vmax = np.nanpercentile(_data, (2, 98))
     except TypeError:
@@ -163,26 +164,33 @@ def plot_single(data, varname, title, skip=1, axes=None):
         vmin=vmin,
         vmax=vmax,
         cmap=cmap,
-        # levels=np.linspace(*np.nanpercentile(ref[var][0], (5, 95)), 15),
     )
     axes[0].set_title(title)
     plt.colorbar(_cf, ax=axes[0], pad=0.02, shrink=0.8)
     axes[0].gridlines()
-    axes[0].coastlines()
+    axes[0].coastlines(resolution="10m")
 
     if single_var:
+        _data1d = np.ma.masked_invalid(
+            data[varname].values.ravel()
+        ).compressed()
         axes[1].boxplot(
-            [np.ma.masked_invalid(data[varname].values.ravel()).compressed()],
-            labels=[title],
-            whis=[1, 99],
+            [_data1d], labels=[title], whis=[1, 99],
         )
+        axes[1].text(
+            1.1,
+            np.nanpercentile(_data1d, 50),
+            annote(data[varname].values.ravel()),
+            horizontalalignment="left",
+        )
+
         sns.despine(ax=axes[1], offset=10)
         fig.suptitle(varname, fontsize=18)
 
     return fig
 
 
-def plot_sideby(ref, test, cmn_vars, skip=1):
+def plot_sideby(ref, test, cmn_vars, out_dir, skip=1):
     """"Make side-by-side plot comparing reference to test."""
     proj = ccrs.NorthPolarStereo(central_longitude=0)
 
@@ -211,11 +219,13 @@ def plot_sideby(ref, test, cmn_vars, skip=1):
         # Because boxplot uses np.percentile to compute the box location,
         # We need to mask invalid data, and compress to just the non-masked
         # values, so that the percentiles don't come out as NaNs
+
         _masktest = np.ma.masked_greater(
             np.ma.masked_invalid(test[var].values.ravel()), 1e36
         ).compressed()
+
         _maskref = np.ma.masked_greater(
-            np.ma.masked_invalid(test[var].values.ravel()), 1e36
+            np.ma.masked_invalid(ref[var].values.ravel()), 1e36
         ).compressed()
 
         axes[3].boxplot(
@@ -244,9 +254,8 @@ def plot_sideby(ref, test, cmn_vars, skip=1):
             wspace=0.12,
             hspace=0.01,
         )
-        # plt.show()
         sns.despine(ax=axes[3], offset=10)
-        plt.savefig(f"plt_{var}_compare.{EXTN}")
+        plt.savefig(Path(out_dir, f"plt_{var}_compare.{EXTN}"))
         plt.close()
 
 
@@ -269,15 +278,23 @@ def main():
     # Test Antarctica
     # ref_file = "ncs/antarctica_1km_2018_05_14.nc"
     # test_file = "ncs/antarctica_1km_2020_02_10.nc"
+    # outdir = "ais_compare"
+    # log_out = "ais"
 
     # Test Bamber grid
-    ref_file = "complete/greenland_8km_2016_12_01.mcb.nc"
-    # test_file = "complete/greenland_8km_2020_02_21.mcb.nc"
-    test_file = "complete/greenland_8km_2020_02_27_1038.mcb.nc"
+    # ref_file = "complete/greenland_8km_2016_12_01.mcb.nc"
+    # test_file = "complete/greenland_8km_2020_02_28_0941.mcb.nc"
+    # out_dir = "bamber_compare"
+    # log_out = "gis_bamber"
 
     # Test EPSG:3413 grid
-    # ref_file = "complete/greenland_8km_2017_06_27.epsg3413.nc"
-    # test_file = "complete/greenland_8km_2020_02_13.epsg3413.nc"
+    ref_file = "complete/greenland_8km_2017_06_27.epsg3413.nc"
+    test_file = "complete/greenland_8km_2020_02_28.epsg3413.nc"
+    out_dir = "epsg3413_compare"
+    log_out = "gis_epsg"
+
+    if not Path(out_dir).exists():
+        Path(out_dir).mkdir()
 
     ref = xr.open_dataset(ref_file, decode_times=False).load()
     test = xr.open_dataset(test_file, decode_times=False).load()
@@ -287,29 +304,30 @@ def main():
         # format="%(asctime)s %(name)-12s %(levelname)-8s %(" "message)s",
         format="%(message)s",
         datefmt="%m-%d %H:%M:%S",
-        filename="compare_1km_ais.log",
+        filename=Path(out_dir, f"compare_{log_out}.log"),
         filemode="w",
     )
+
     log = logging.getLogger("test")
     log.info("-" * 30)
     log.info(f"Comparing\n  Test: {test_file}\n        to\n  Ref : {ref_file}")
     skip = 1
     cmn_vars, ref_vars, test_vars = check_vars(ref, test)
-    plot_sideby(ref, test, cmn_vars, skip=skip)
+    plot_sideby(ref, test, cmn_vars, out_dir, skip=skip)
 
     for _refvar in ref_vars:
         if "epsg" in _refvar or "mcb" in _refvar or "mapping" in _refvar:
             continue
         print(f"Plot reference {_refvar}")
         _fig = plot_single(ref, _refvar, "Reference", skip=skip)
-        _fig.savefig(f"plt_{_refvar}_ref_only.{EXTN}")
+        _fig.savefig(Path(out_dir, f"plt_{_refvar}_ref_only.{EXTN}"))
 
     for _testvar in test_vars:
         if "epsg" in _testvar or "mcb" in _testvar or "mapping" in _testvar:
             continue
         print(f"Plot test {_testvar}")
         _fig = plot_single(test, _testvar, "Test", skip=skip)
-        _fig.savefig(f"plt_{_testvar}_test_only.{EXTN}")
+        _fig.savefig(Path(out_dir, f"plt_{_testvar}_test_only.{EXTN}"))
 
 
 EXTN = "png"
