@@ -105,7 +105,12 @@ def mcb_epsg3413(
     copy_atts_bad_fill(massCon.thickness, base.thk, MISSING_VAL)
     base.thk.grid_mapping = "epsg_3413"
     base.thk.coordinates = "lon lat"
-    base.thk.reference = "M. Morlighem, E. Rignot, J. Mouginot, H. Seroussi and E. Larour, Deeply incised submarine glacial valleys beneath the Greenland Ice Sheet, Nat. Geosci., 7, 418-422, 2014, doi:10.1038/ngeo2167, http://www.nature.com/ngeo/journal/vaop/ncurrent/full/ngeo2167.html"
+    try:
+        base.thk.reference = nc_massCon.Data_citation
+    except AttributeError:
+        # Attribute not there...set it somewhere else
+        print("THICKNESS DATA CITATION NOT FOUND")
+        pass
 
     speak.verbose(args, "   Interpolating, with priority, topg and topgerr.")
     speak.verbose(args, "      Primary Data [IceBridge]:  bed and errbed.")
@@ -265,7 +270,13 @@ def mcb_epsg3413(
         )
         base.var.grid_mapping = "epsg_3413"
         base.var.coordinates = "lon lat"
-        base.var.reference = "M. Morlighem, E. Rignot, J. Mouginot, H. Seroussi and E. Larour, Deeply incised submarine glacial valleys beneath the Greenland Ice Sheet, Nat. Geosci., 7, 418-422, 2014, doi:10.1038/ngeo2167, http://www.nature.com/ngeo/journal/vaop/ncurrent/full/ngeo2167.html"
+
+        try:
+            base.var.reference = nc_massCon.Data_citation
+        except AttributeError:
+            # Attribute not there...set it somewhere else
+            print("THICKNESS DATA CITATION NOT FOUND")
+            pass
 
 
 def remask(data):
