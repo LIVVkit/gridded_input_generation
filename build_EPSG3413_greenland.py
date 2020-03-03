@@ -23,6 +23,7 @@ from data import racmo2p3
 from data import insar
 from data import icebridge
 from data import csatho
+from data import measures_velocity
 
 # === Data Locations ====
 # Link data here or edit
@@ -181,7 +182,7 @@ if not args.use_template:
     # === RACMO2.3 Data =====
     # this is a 1km dataset
     # =======================
-    speak.notquiet(args, "\nGetting acab from the RACMO 2.0 data.")
+    speak.notquiet(args, "\nGetting acab from the RACMO 2.3 data.")
     racmo2p3.acab_epsg3413(args, nc_racmo2p3, nc_base, base)
     speak.notquiet(args, "   Done!")
     nc_racmo2p3.close()
@@ -190,8 +191,13 @@ if not args.use_template:
     # this is a 500m dataset in
     # the ESPG-3413 projection
     # ============================
-    speak.notquiet(args, "\nGetting vy, vx, ey, and ex from the InSAR data.")
-    insar.velocity_epsg3413(args, nc_insar, nc_base, base)
+    speak.notquiet(
+        args, "\nGetting vy, vx, ey, and ex from the MEASURES data."
+    )
+    # insar.velocity_epsg3413(args, nc_insar, nc_base, base)
+
+    measures_velocity.velocity(args, nc_base, base)
+
     speak.notquiet(args, "   Done!")
     nc_insar.close()
 

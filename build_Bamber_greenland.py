@@ -19,6 +19,7 @@ from data import insar
 from data import icebridge
 from data import ice2sea
 from data import csatho
+from data import measures_velocity
 
 
 """
@@ -50,7 +51,7 @@ lc_csatho = (
 # load data sets
 # ================
 # stamp = datetime.date.today().strftime("%Y_%m_%d_%H%M")
-stamp = datetime.datetime.now().strftime("%Y_%m_%d_%H%M")
+stamp = datetime.datetime.now().strftime("%Y_%m_%d")
 f_base = "templates/greenland_1km.mcb.nc"
 
 # parse the command line arguments
@@ -102,16 +103,16 @@ speak.verbose(args, "   Found Sea Rise data")
 nc_racmo2p3 = get_nc_file(lc_racmo2p3, "r")
 speak.verbose(args, "   Found RACMO 2.3 data")
 
-try:
-    nc_insar = get_nc_file(lc_InSAR, "r")
-except Exception:
-    speak.verbose(args, "\n   Building InSAR velocity dataset...\n")
-    subprocess.call(
-        "python util/convert_velocities.py " + os.path.dirname(lc_InSAR),
-        shell=True,
-    )
-    nc_insar = get_nc_file(lc_InSAR, "r")
-speak.verbose(args, "   Found InSAR data")
+# try:.
+#     nc_insar = get_nc_file(lc_InSAR, "r")
+# except Exception:
+#     speak.verbose(args, "\n   Building InSAR velocity dataset...\n")
+#     subprocess.call(
+#         "python util/convert_velocities.py " + os.path.dirname(lc_InSAR),
+#         shell=True,
+#     )
+#     nc_insar = get_nc_file(lc_InSAR, "r")
+# speak.verbose(args, "   Found InSAR data")
 
 
 nc_massCon = get_nc_file(lc_massCon, "r")
@@ -186,9 +187,9 @@ nc_racmo2p3.close()
 # =============================
 speak.notquiet(args, "\nGetting vy, vx, ey, and ex from the InSAR data.")
 
-insar.velocity_bamber(args, nc_insar, nc_base, trans)
+measures_velocity.velocity(args, nc_base, base, proj_eigen_gl04c)
 
-nc_insar.close()
+# nc_insar.close()
 # ==== Mass Conserving Bed Data ===
 # This is the new (2015) bed data
 # =================================
