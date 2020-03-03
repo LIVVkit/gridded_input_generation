@@ -81,6 +81,9 @@ def add_time_and_shrink(
     x1 = nc_1km.createVariable("x1", "f4", ("x1",))
     copy_atts(base.y, y1)
     copy_atts(base.x, x1)
+    # Execpt units, units should be "m" no matter the projection
+    y1.units = "m"
+    x1.units = "m"
 
     y1[:] = base.y[y_shrink[0] : y_shrink[1]]
     x1[:] = base.x[x_shrink[0] : x_shrink[1]]
