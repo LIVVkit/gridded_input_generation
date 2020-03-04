@@ -1,0 +1,25 @@
+name: cism3
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.7
+  - scipy
+  - pyproj
+  - nco
+  - numpy
+  - jupyter
+  - pynco
+  - netcdf4
+  - xarray
+  - matplotlib
+  - dask
+  - black
+  - pylint
+  - cartopy
+  - pyresample
+  - pyngl
+  - seaborn
+  - tqdm
+  - rasterio
+
