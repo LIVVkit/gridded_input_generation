@@ -6,6 +6,16 @@ data/*
 !data/*.py
 complete/*
 
+# Ignore image files
+*.png
+
+# Ignore notebook checkpoints
+.ipynb_checkpoints*
+
+# Ignore PyCharm settings
+.idea
+
+
 # ignore the extra projection information
 util/egm08_25.gtx
 
