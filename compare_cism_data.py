@@ -135,7 +135,10 @@ def plot_single(data, varname, title, skip=1, axes=None):
         single_var = False
         axes = [axes]
 
-    if "missing_value" not in data[varname].attrs:
+    if (
+        "missing_value" not in data[varname].attrs
+        or "missing_value" not in data[varname].encoding
+    ):
         _data = np.ma.masked_values(
             data[varname][0], data[varname][0].max()
         ).compressed()
@@ -229,7 +232,7 @@ def plot_sideby(ref, test, cmn_vars, out_dir, skip=1):
         ).compressed()
 
         axes[3].boxplot(
-            [_masktest, _maskref], labels=["Test", "Ref"], whis=[1, 99],
+            [_maskref, _masktest], labels=["Reference", "Test"], whis=[1, 99],
         )
         axes[3].text(
             1.1,
@@ -283,13 +286,13 @@ def main():
 
     # Test Bamber grid
     # ref_file = "complete/greenland_8km_2016_12_01.mcb.nc"
-    # test_file = "complete/greenland_8km_2020_03_03.mcb.nc"
+    # test_file = "complete/greenland_8km_2020_03_04.mcb.nc"
     # out_dir = "bamber_compare"
     # log_out = "gis_bamber"
 
     # Test EPSG:3413 grid
     ref_file = "complete/greenland_8km_2017_06_27.epsg3413.nc"
-    test_file = "complete/greenland_8km_2020_03_03.epsg3413.nc"
+    test_file = "complete/greenland_8km_2020_03_04.epsg3413.nc"
     out_dir = "epsg3413_compare"
     log_out = "gis_epsg"
 
