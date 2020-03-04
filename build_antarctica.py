@@ -252,11 +252,11 @@ def nn_interp(x_in, y_in, x_out, y_out, z_in, nbrs=1):
 
     if nbrs > 1:
         # Weight by distance of the neighbours
-        wgts = 1.0 / dist ** 2
+        wgts = 1.0 / (dist + 1.0e-16) ** 2
 
         # Select indicies on flattened (1D) input data, weight by
         # sum of distance (axis=1 is "neighbour" axis)
-        z_out = np.sum(wgts * z_in.flatten()[inds], axis=1) / np.sum(
+        z_out = np.nansum(wgts * z_in.flatten()[inds], axis=1) / np.nansum(
             wgts, axis=1
         )
     else:

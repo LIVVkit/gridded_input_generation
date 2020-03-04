@@ -50,7 +50,6 @@ lc_csatho = (
 # get args, time
 # load data sets
 # ================
-# stamp = datetime.date.today().strftime("%Y_%m_%d_%H%M")
 stamp = datetime.datetime.now().strftime("%Y_%m_%d")
 f_base = "templates/greenland_1km.mcb.nc"
 
