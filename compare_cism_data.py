@@ -286,13 +286,14 @@ def main():
 
     # Test Bamber grid
     # ref_file = "complete/greenland_8km_2016_12_01.mcb.nc"
-    # test_file = "complete/greenland_8km_2020_03_04.mcb.nc"
+    # # ref_file = "complete/greenland_8km_2020_03_04.mcb.nc"
+    # test_file = "complete/greenland_8km_2020_03_09.mcb.nc"
     # out_dir = "bamber_compare"
     # log_out = "gis_bamber"
 
     # Test EPSG:3413 grid
     ref_file = "complete/greenland_8km_2017_06_27.epsg3413.nc"
-    test_file = "complete/greenland_8km_2020_03_04.epsg3413.nc"
+    test_file = "complete/greenland_8km_2020_03_09.epsg3413.nc"
     out_dir = "epsg3413_compare"
     log_out = "gis_epsg"
 

@@ -41,10 +41,11 @@ lc_massCon = "data/150m-MC-thickness/BedMachineGreenland-2017-09-20.nc"
 # lc_massCon = "data/IceBridge/Greenland/MCdataset-2014-11-19.nc"
 lc_mask = "data/Ice2Sea/ice2sea_Greenland_geometry_icesheet_mask_Zurich.nc"
 
-lc_csatho = (
-    "data/Csatho2014/GreenlandIceSheetdhdt_csatho/"
-    "greenland_ice_sheet_dhdt_icesat_atm_l1a_to_l2f.cdf"
-)
+# lc_csatho = (
+#     "data/Csatho2014/GreenlandIceSheetdhdt_csatho/"
+#     "greenland_ice_sheet_dhdt_icesat_atm_l1a_to_l2f.cdf"
+# )
+lc_csatho = "data/Csatho2014/processed/Icedyndhdtave0309.nc"
 
 # ==== SETUP =====
 # get args, time
@@ -215,8 +216,12 @@ nc_massCon.close()
 # Approx. 8km dataset
 # =====================
 speak.notquiet(args, "\nGetting dhdt from the Csatho data.")
-csatho.dhdt_bamber(
-    args, nc_csatho, nc_base, base, proj_epsg3413, proj_eigen_gl04c
+csatho.dhdt_all(
+    args,
+    nc_csatho,
+    nc_base,
+    base,
+    proj_out=None,  # proj_epsg3413, proj_eigen_gl04c
 )
 speak.notquiet(args, "   Done!")
 nc_csatho.close()

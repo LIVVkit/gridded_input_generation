@@ -44,11 +44,11 @@ Data: https://arcticdata.io/catalog/view/doi:10.5065/D6HM56KS
 import numpy as np
 import scipy
 import scipy.interpolate
-
+import pyproj
 from util import speak
 from util import projections
 from util.ncfunc import copy_atts_add_fill
-
+from build_antarctica import nn_interp
 
 # ICESat campaign mid-dates in form of: {name: MMDDYY}
 ICESAT_CAMPAIGN_MIDDATES = {
@@ -166,6 +166,77 @@ def dhdt_bamber(
 
     dhdt = np.ma.masked_greater(dhdt, 1e10)
     dhdt = dhdt.filled(MISSING_VAL)
+    base.dhdt = nc_base.createVariable("dhdt", "f4", ("y", "x",))
+    base.dhdt[:] = dhdt[:]
+
+    # Copy the attributes, somehow it's missing the missing value setter
+    copy_atts_add_fill(nc_csatho.variables[in_var], base.dhdt, MISSING_VAL)
+
+    # Now replace all the metadata except for the fill/missing value
+    base.dhdt.long_name = "average {}--{} surface elevation change rate".format(
+        ICESAT_CAMPAIGN_MIDDATES["L1A"][-2:],
+        ICESAT_CAMPAIGN_MIDDATES["L2F"][-2:],
+    )
+    base.dhdt.standard_name = "tendency_of_land_ice_thickness"
+    base.dhdt.units = "m year-1"
+    base.dhdt.grid_mapping = "mcb"
+    base.dhdt.coordinates = "lon lat"
+    base.dhdt.source = (
+        "https://arcticdata.io/catalog/view/doi:10.5065/D6HM56KS"
+    )
+    base.dhdt.reference = (
+        "Beata M. Csatho, Anton F. Schenk, Cornelis J. van der "
+        "Veen, Gregory Babonis, Kyle Duncan, Soroush Rezvanbehbahani, "
+        "Michiel R. van den Broeke, Sebastian B. Simonsen, Sudhagar Nagarajan, "
+        "Jan H. van Angelen: Greenland ice dynamics from laser altimetry, "
+        "Proceedings of the National Academy of Sciences Dec 2014, 111 (52) "
+        "18478-18483; DOI: 10.1073/pnas.1411680112"
+    )
+
+
+def dhdt_all(args, nc_csatho, nc_base, base, proj_out=None):
+    """
+    Interpolate dhdt data.
+
+    Parameters
+    ----------
+    args :
+    :param args:
+    :param nc_csatho:
+    :param nc_base:
+    :param base:
+    :param proj_out:
+    :return:
+    """
+    prj_epsg, prj_mcb = projections.greenland()
+    in_var = "dhdt"
+    x_in, y_in = np.meshgrid(
+        nc_csatho.variables["X"][:], nc_csatho.variables["Y"][:]
+    )
+    if proj_out is not None:
+        # Transform first, data in is on Bamber (MCB) Grid.
+        x_in, y_in = pyproj.transform(prj_mcb, proj_out, x=x_in, y=y_in)
+
+    # dhdt = scipy.interpolate.griddata(
+    #     np.column_stack((x_in.ravel(), y_in.ravel())),
+    #     nc_csatho.variables[in_var][:].ravel(),
+    #     (base.x_grid.ravel(), base.y_grid.ravel()),
+    #     method="nearest",
+    # )
+    dhdt = nn_interp(
+        x_in,
+        y_in,
+        base.x_grid,
+        base.y_grid,
+        nc_csatho.variables[in_var][:],
+        nbrs=2,
+    )
+    dhdt = np.ma.masked_less(dhdt, -1e28)
+    dhdt = dhdt.reshape(base.ny, base.nx)
+    dhdt.mask |= np.isclose(base.thk[:], 0.0)
+
+    dhdt = dhdt.filled(MISSING_VAL)
+
     base.dhdt = nc_base.createVariable("dhdt", "f4", ("y", "x",))
     base.dhdt[:] = dhdt[:]
 
