@@ -48,7 +48,8 @@ def copy_atts(nc_source, nc_target):
 
     # place those attributes in the outgoing file
     for ii in range(len(atts)):
-        nc_target.setncattr(atts[ii], nc_source.getncattr(atts[ii]))
+        if atts[ii] != "_FillValue":
+            nc_target.setncattr(atts[ii], nc_source.getncattr(atts[ii]))
 
 
 def copy_atts_bad_fill(nc_source, nc_target, missing_value):
