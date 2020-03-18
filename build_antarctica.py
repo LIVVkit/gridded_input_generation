@@ -15,7 +15,8 @@ from nco import Nco
 import pyproj
 from pykdtree.kdtree import KDTree
 from util import projections
-
+from util import finalize
+from argparse import Namespace
 
 __author__ = "Michael Kelleher"
 
@@ -114,6 +115,9 @@ def load_hf(in_file, **kwargs):
         coords={cfg["coords"]["x"]: x_ext, cfg["coords"]["y"]: y_ext},
         dims=[cfg["coords"]["y"], cfg["coords"]["x"]],
     )
+    if "err" not in in_var:
+        hf_grid *= -1
+
     return xr.Dataset({in_var: hf_grid})
 
 
@@ -280,7 +284,7 @@ def interp(in_cfg, in_var, out_cfg, output):
         ny_in = in_data[in_cfg["coords"]["y"]].shape[0]
         if nx_in >= xout.shape[0] and ny_in >= yout.shape[0]:
             # Use nearest neighbour when input data is higher res than output
-            nbrs = 1
+            nbrs = 5
         else:
             # Otherwise use linear
             nbrs = 1
@@ -435,6 +439,11 @@ def main(island="antarctica", resolution=1, proj_opt=None):
     # to be interpolated to the output grid. Each dataset has a file,
     # some variable names, meta data for each variable, and metadata that's
     # common to all the variables in the dataset (e.g. soruce, references, etc.)
+    args = Namespace()
+    args.quiet = False
+    args.verbose = True
+    args.do_interp = True
+
     if island == "antarctica":
         template_dset = f"{resolution}km_in"
         proj_out_name = "epsg_3031"
@@ -478,66 +487,95 @@ def main(island="antarctica", resolution=1, proj_opt=None):
         f"{island}_{resolution}km_{datetime.now().strftime('%Y_%m_%d')}.nc",
     )
 
-    output = output_setup(
-        input_config[template_dset]["file"],
-        output_file,
-        island,
-        proj_out_name,
-        coords=output_cfg["coords"],
-    )
-
-    # Unlink from file, since output_setup loads netCDF to memory
-    # this allows writing back to the same file we open
-    output.close()
-
-    # We need both the 3412 and 3031 projections. The former is what Cryosat2
-    # comes in on, the latter is what all of our output will be on
-    # epsg3412, epsg3031, _ = projections.antarctica()
-    grid_center_lat_lon(
-        output,
-        proj_out,
-        proj_out_name,
-        cvars=(output_cfg["coords"]["y"], output_cfg["coords"]["x"]),
-    )
-
-    # These are variables in the base file that just need metadata copied
-    for dset, var in ext_vars:
-        output[var] = output[var].assign_attrs(input_config[dset]["meta"][var])
-        output[var] = output[var].assign_attrs(input_config[dset]["cmeta"])
-
-    # Do the interpolation step for each variable. This could possibly be split
-    # out into multiprocessing queue, since the computations are independent
-    print("-" * 50)
-    for out_var, ds_in, in_var in inout_map:
-        output[out_var] = interp(
-            input_config[ds_in], in_var, output_cfg, output
-        )
-        output[out_var] = output[out_var].assign_attrs(
-            {"grid_mapping": proj_out_name}
+    if args.do_interp:
+        output = output_setup(
+            input_config[template_dset]["file"],
+            output_file,
+            island,
+            proj_out_name,
+            coords=output_cfg["coords"],
         )
 
-    # TODO: Check masking
+        # Unlink from file, since output_setup loads netCDF to memory
+        # this allows writing back to the same file we open
+        output.close()
 
-    # The file needs metadata
-    output = output.assign_attrs(output_metadata)
+        # We need both the 3412 and 3031 projections. The former is what
+        # Cryosat2 comes in on, the latter is what all of our output will be on
+        # epsg3412, epsg3031, _ = projections.antarctica()
+        grid_center_lat_lon(
+            output,
+            proj_out,
+            proj_out_name,
+            cvars=(output_cfg["coords"]["y"], output_cfg["coords"]["x"]),
+        )
 
-    # There are also coordinate variables that need metadata
-    for variable in output_variables:
-        if variable in ["epsg_3031", "epsg_3413", "mcb"]:
-            # This creates a zero-dimension grid mapping variable so that
-            # the grid mapping is cf-conventions compliant
-            output[variable] = xr.Variable(
-                dims=[], data=None, attrs=output_variables[variable]
+        # These are variables in the base file that just need metadata copied
+        for dset, var in ext_vars:
+            output[var] = output[var].assign_attrs(
+                input_config[dset]["meta"][var]
+            )
+            output[var] = output[var].assign_attrs(input_config[dset]["cmeta"])
+
+        # Do the interpolation step for each variable. This could possibly
+        # be split out into multiprocessing queue, since the computations
+        # are independent
+        print("-" * 50)
+        for out_var, ds_in, in_var in inout_map:
+            output[out_var] = interp(
+                input_config[ds_in], in_var, output_cfg, output
+            )
+            output[out_var] = output[out_var].assign_attrs(
+                {"grid_mapping": proj_out_name}
             )
 
-        # Otherwise just assign the metadata defined in the output dictionary
-        if variable in output:
-            output[variable] = output[variable].assign_attrs(
-                output_variables[variable]
-            )
+        # Generate Ice, Land, and Land-Ice masks
+        msk_ice = output["thk"] > np.nextafter(0.0, 1.0)
+        msk_grounded = (-1023.0 / 917.0) * output["topg"] < np.nextafter(
+            output["thk"], output["thk"] + 1.0
+        )
+        msk_all = np.logical_and(msk_ice, msk_grounded)
 
-    output.to_netcdf(output_file)
-    print(f"-------- COMPLETE FILE SAVED TO {output_file} --------")
+        # Mask bheatflx and its error
+        ice_mask_vars = ["bheatflx", "bheatflxerr"]
+        for mask_var in ice_mask_vars:
+            output[mask_var] = output[mask_var].where(msk_ice)
+
+        all_mask_vars = ["dhdt"]
+        for mask_var in all_mask_vars:
+            output[mask_var] = output[mask_var].where(msk_all)
+
+        # The file needs metadata
+        output = output.assign_attrs(output_metadata)
+
+        # There are also coordinate variables that need metadata
+        for variable in output_variables:
+            if variable in ["epsg_3031", "epsg_3413", "mcb"]:
+                # This creates a zero-dimension grid mapping variable so that
+                # the grid mapping is cf-conventions compliant
+                output[variable] = xr.Variable(
+                    dims=[], data=None, attrs=output_variables[variable]
+                )
+
+            # Otherwise assign the metadata defined in the output dictionary
+            if variable in output:
+                output[variable] = output[variable].assign_attrs(
+                    output_variables[variable]
+                )
+
+        output.to_netcdf(output_file)
+        print(f"-------- COMPLETE FILE SAVED TO {output_file} --------")
+
+    print("-------- FINALISE --------")
+    lower_res = [2, 4, 5, 8]
+    finalize.coarsen(
+        args,
+        "epsg_3031",
+        str(output_file),
+        f_template=None,
+        coarse_list=lower_res,
+    )
+    print("--" * 5 + "DONE" + "--" * 5)
 
 
 if __name__ == "__main__":
