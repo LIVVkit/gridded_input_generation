@@ -7,7 +7,7 @@ import build_antarctica as ba
 from pathlib import Path
 from datetime import datetime
 
-DATA_ROOT = "data"
+DATA_ROOT = "/Volumes/data/piscees/ant"
 
 input_config = {
     "1km_in": {
@@ -128,7 +128,7 @@ input_config = {
         },
     },
     "heatflux": {
-        "file": Path("data", "Martos-AIS-heatFlux", "Antarctic_GHF.xyz"),
+        "file": Path(DATA_ROOT, "Martos-AIS-heatFlux", "Antarctic_GHF.xyz"),
         "load": ba.load_hf,
         "vars": ["bheatflx"],
         "coords": {"x": "x", "y": "y"},
@@ -162,7 +162,7 @@ input_config = {
     },
     "heatflux_unc": {
         "file": Path(
-            "data", "Martos-AIS-heatFlux", "Antarctic_GHF_uncertainty.xyz"
+            DATA_ROOT, "Martos-AIS-heatFlux", "Antarctic_GHF_uncertainty.xyz"
         ),
         "load": ba.load_hf,
         "vars": ["bheatflxerr"],
@@ -183,7 +183,7 @@ input_config = {
         },
     },
     "cryosat": {
-        "file": Path(DATA_ROOT, "Cryosat2", "CS2_dzdt.nc"),
+        "file": Path(DATA_ROOT, "cryosat2-dzdt", "CS2_dzdt.nc"),
         "load": ba.load_cryosat,
         "vars": ["dzdt", "dzdterr"],
         "coords": {"x": "x1", "y": "y1"},
