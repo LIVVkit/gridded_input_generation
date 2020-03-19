@@ -386,7 +386,7 @@ def output_setup(
         nco.ncks(
             input=str(input_file),
             output=str(output_file),
-            options=["-x", "-v", "acab_alb,artm_alb,dzdt"],
+            options=["-x", "-v", "acab_alb,artm_alb,dzdt,verr"],
         )
         ds_base = xr.open_dataset(output_file).load()
     else:

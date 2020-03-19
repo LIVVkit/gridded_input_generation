@@ -296,6 +296,53 @@ input_config = {
             ),
         },
     },
+    "Mouginot-InSAR": {
+        "file": Path(
+            DATA_ROOT,
+            "Mouginot-InSAR-450m-2019",
+            "antarctic_ice_vel_phase_map_v01.nc",
+        ),
+        "load": ba.xr_load,
+        "vars": ["VX", "VY", "ERRX", "ERRY"],
+        "coords": {"x": "x", "y": "y"},
+        "meta": {
+            "VX": {
+                "long_name": "Ice velocity in x direction",
+                "standard_name": "land_ice_x_velocity",
+                "units": "meter year-1",
+            },
+            "VY": {
+                "long_name": "Ice velocity in y direction",
+                "standard_name": "land_ice_y_velocity",
+                "units": "meter year-1",
+            },
+            "ERRX": {
+                "long_name": "Ice velocity in x direction error",
+                "standard_name": "land_ice_x_velocity standard_error",
+                "units": "meter year-1",
+            },
+            "ERRY": {
+                "long_name": "Ice velocity in y direction error",
+                "standard_name": "land_ice_y_velocity standard_error",
+                "units": "meter year-1",
+            },
+        },
+        "cmeta": {
+            "source": (
+                "MEaSURES Antarctica Ice Velocity Map 450m spacing\n"
+                "https://nsidc.org/data/nsidc-0754/\n"
+                "Department of Earth System Science, University of California, "
+                "Irvine, CA, USA; Univ. Grenoble Alpes, CNRS, IRD, "
+                "Grenoble INP, IGE, 38000 Grenoble, France"
+            ),
+            "reference": (
+                "Mouginot, J., E. Rignot, and B. Scheuchl. 2019. "
+                "Continent-wide, interferometric SAR phase-mapping of "
+                "Antarctic ice velocity, Geophysical Research Letters. "
+                "46. 9710-9718. https://doi.org/10.1029/2019GL083826"
+            ),
+        },
+    },
     "veloc": {
         "vars": ["vx", "vy", "verr"],
         "meta": {
@@ -434,6 +481,10 @@ inout_map = [
     ("bheatflxerr", "heatflux_unc", "bheatflxerr"),
     ("subm", "rignot_subshelf", "melt_actual"),
     ("subm_ss", "rignot_subshelf", "melt_steadystate"),
+    ("vx", "Mouginot-InSAR", "VX"),
+    ("vy", "Mouginot-InSAR", "VY"),
+    ("ex", "Mouginot-InSAR", "ERRX"),
+    ("ey", "Mouginot-InSAR", "ERRY"),
 ]
 
 # Add metadata for extant variables (copied from the original netCDF file)
@@ -441,7 +492,7 @@ ext_vars = [
     ("smb", "acab"),
     ("smb", "artm"),
     # ("topg", "topg"),
-    ("veloc", "verr"),
-    ("veloc", "vx"),
-    ("veloc", "vy"),
+    # ("veloc", "verr"),
+    # ("veloc", "vx"),
+    # ("veloc", "vy"),
 ]
