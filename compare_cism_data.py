@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """Compare a newly generated CISM-like input dataset to an older version."""
 import logging
+import argparse
 from pathlib import Path
 import numpy as np
 import matplotlib
@@ -113,6 +114,16 @@ def get_map_transform(dset, var):
             central_latitude=90.0,
             true_scale_latitude=71.0,
         )
+
+    elif dset[var]["y1"].min() == -3333500.0 == dset[var]["x1"].min():
+        # Reference file for Bamber grid doesn't have grid map, and is on this
+        # grid, so default to that if the lower left corner matches
+        tform = ccrs.Stereographic(
+            central_longitude=0.0,
+            central_latitude=-90.0,
+            true_scale_latitude=71.0,
+        )
+
     else:
         tform = ccrs.PlateCarree()
 
@@ -195,7 +206,8 @@ def plot_single(data, varname, title, skip=1, axes=None):
 
 def plot_sideby(ref, test, cmn_vars, out_dir, skip=1):
     """"Make side-by-side plot comparing reference to test."""
-    proj = ccrs.NorthPolarStereo(central_longitude=0)
+    # proj = ccrs.NorthPolarStereo(central_longitude=0)
+    proj = ccrs.SouthPolarStereo(central_longitude=0)
 
     for var in sorted(cmn_vars):
         if "epsg" in var or "mcb" in var or "mapping" in var:
@@ -276,26 +288,57 @@ def annote(data):
     return str_out
 
 
+def make_parse():
+    # parse the command line arguments
+    parser = argparse.ArgumentParser()  # -h or --help automatically included!
+
+    parser.add_argument(
+        "-i",
+        "--island",
+        type=str,
+        default="ais",
+        help="Island to compare (one of ais, gis)",
+    )
+    parser.add_argument(
+        "-p",
+        "--proj",
+        type=str,
+        default="epsg3031",
+        help=(
+            "Projection to compare (for island == ant: epsg3031, "
+            "for island == gis: mcb or epsg3413"
+        ),
+    )
+
+    return parser.parse_args()
+
+
 def main():
     """Define and load two files, call plots."""
-    # Test Antarctica
-    # ref_file = "ncs/antarctica_1km_2018_05_14.nc"
-    # test_file = "ncs/antarctica_1km_2020_02_10.nc"
-    # outdir = "ais_compare"
-    # log_out = "ais"
+    args = make_parse()
 
-    # Test Bamber grid
-    # ref_file = "complete/greenland_8km_2016_12_01.mcb.nc"
-    # # ref_file = "complete/greenland_8km_2020_03_04.mcb.nc"
-    # test_file = "complete/greenland_8km_2020_03_09.mcb.nc"
-    # out_dir = "bamber_compare"
-    # log_out = "gis_bamber"
+    if args.island == "ais" and args.proj == "epsg3031":
+        # Test Antarctica
+        # ref_file = "ncs/antarctica_8km_2014_01_14.nc"
+        ref_file = "ncs/antarctica_1km_2017_05_03.nc"
+        test_file = "ncs/antarctica_1km_2020_03_19.nc"
+        out_dir = "ais_compare"
+        log_out = "ais"
 
-    # Test EPSG:3413 grid
-    ref_file = "complete/greenland_8km_2017_06_27.epsg3413.nc"
-    test_file = "complete/greenland_8km_2020_03_09.epsg3413.nc"
-    out_dir = "epsg3413_compare"
-    log_out = "gis_epsg"
+    elif args.island == "gis" and args.proj == "mcb":
+        # Test Bamber grid
+        ref_file = "complete/greenland_8km_2016_12_01.mcb.nc"
+        # ref_file = "complete/greenland_8km_2020_03_04.mcb.nc"
+        test_file = "complete/greenland_8km_2020_03_09.mcb.nc"
+        out_dir = "bamber_compare"
+        log_out = "gis_bamber"
+
+    elif args.island == "gis" and args.proj == "epsg3413":
+        # Test EPSG:3413 grid
+        ref_file = "complete/greenland_8km_2017_06_27.epsg3413.nc"
+        test_file = "complete/greenland_8km_2020_03_09.epsg3413.nc"
+        out_dir = "epsg3413_compare"
+        log_out = "gis_epsg"
 
     if not Path(out_dir).exists():
         Path(out_dir).mkdir()
