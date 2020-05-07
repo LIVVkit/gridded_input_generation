@@ -1,6 +1,7 @@
 #!/usr/bin/env python
 
 import os
+from pathlib import Path
 import datetime
 import subprocess
 import argparse
@@ -21,31 +22,52 @@ from data import ice2sea
 from data import csatho
 from data import measures_velocity
 
-
 """
 Build a CISM dataset
 """
 # ==== Data Locations ====
 # Link data here or edit
 # ========================
+DATA_ROOT = "/Volumes/data/piscees/gis"
 # FIXME: Centralize data location vars so users only have to edit this info once
-lc_bamber = "data/BamberDEM/Greenland_bedrock_topography_V3.nc"
+lc_bamber = Path(
+    DATA_ROOT, "1km-res-Bamber-DEM", "Greenland_bedrock_topography_V3.nc"
+)
+# lc_bamber = "data/BamberDEM/Greenland_bedrock_topography_V3.nc"
 lc_seaRise = "data/SeaRise/Greenland1km.nc"
-lc_racmo2p0 = "data/RACMO2.0/Racmo2MeanSMB_1961-1990.nc"
-lc_racmo2p3 = "data/RACMO2.3/smb_1km_GrIS_downscaled_RACMO2_3.nc"
+lc_seaRise = Path(DATA_ROOT, "1km-res-other", "Greenland1km.nc")
+# lc_racmo2p0 = "data/RACMO2.0/Racmo2MeanSMB_1961-1990.nc"
+# lc_racmo2p0 = Path(
+#     DATA_ROOT, "RACMO-new", "ERA-Interim", "gis_RACMO_smb_std.nc"
+# )
+lc_racmo2p3 = Path(
+    DATA_ROOT,
+    "RACMO2p3",
+    "smb_rec_stats.1958-2019.BN_RACMOP2.3p2_FGRN055_GrIS.MM.nc",
+)
 
 # NOTE:  will build this file from mosaicOffsets.* files
-lc_InSAR = "data/InSAR/Joughin2015/greenland_vel_mosaic500.nc"
+# lc_InSAR = "data/InSAR/Joughin2015/greenland_vel_mosaic500.nc"
+lc_InSAR = Path(DATA_ROOT, "joughin-InSAR-2015", "greenland_vel_mosaic500.nc")
 
-lc_massCon = "data/150m-MC-thickness/BedMachineGreenland-2017-09-20.nc"
+# lc_massCon = "data/150m-MC-thickness/BedMachineGreenland-2017-09-20.nc"
+lc_massCon = Path(
+    DATA_ROOT, "150m-MC-thickness", "BedMachineGreenland-2017-09-20.nc"
+)
 # lc_massCon = "data/IceBridge/Greenland/MCdataset-2014-11-19.nc"
-lc_mask = "data/Ice2Sea/ice2sea_Greenland_geometry_icesheet_mask_Zurich.nc"
+# lc_mask = "data/Ice2Sea/ice2sea_Greenland_geometry_icesheet_mask_Zurich.nc"
+lc_mask = Path(
+    DATA_ROOT,
+    "1km-res-other",
+    "ice2sea_Greenland_geometry_icesheet_mask_Zurich.nc",
+)
 
 # lc_csatho = (
 #     "data/Csatho2014/GreenlandIceSheetdhdt_csatho/"
 #     "greenland_ice_sheet_dhdt_icesat_atm_l1a_to_l2f.cdf"
 # )
-lc_csatho = "data/Csatho2014/processed/Icedyndhdtave0309.nc"
+# lc_csatho = "data/Csatho2014/processed/Icedyndhdtave0309.nc"
+lc_csatho = Path(DATA_ROOT, "dhdt-Csatho", "Icedyndhdtave0309.nc")
 
 # ==== SETUP =====
 # get args, time
@@ -99,7 +121,8 @@ speak.verbose(args, "   Found shrunken Bamber grid specs")
 nc_seaRise = get_nc_file(lc_seaRise, "r")
 speak.verbose(args, "   Found Sea Rise data")
 
-
+# nc_racmo2p0 = get_nc_file(lc_racmo2p0, "r")
+# speak.verbose(args, "   Found RACMO 2.0 data")
 nc_racmo2p3 = get_nc_file(lc_racmo2p3, "r")
 speak.verbose(args, "   Found RACMO 2.3 data")
 
@@ -177,9 +200,7 @@ nc_seaRise.close()
 # this is a 1km dataset
 # ========================
 speak.notquiet(args, "\nGetting acab from the RACMO 2.3 data.")
-
 racmo2p3.acab_bamber(args, nc_racmo2p3, nc_base, base)
-
 nc_racmo2p3.close()
 # ==== InSAR velocity Data ====
 # this is a 500m dataset in
