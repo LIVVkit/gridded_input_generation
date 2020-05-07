@@ -50,7 +50,7 @@ def acab_epsg3413(args, nc_racmo, nc_base, base):
     racmo.nx = racmo.x[:].shape[0]
     racmo.make_grid()
 
-    base_vars = {"smb": "SMB_rec"}
+    base_vars = {"smb": "SMB_mean", "smb_std": "SMB_stdv"}
     for bvar, rvar in base_vars.items():
         speak.verbose(
             args, "   Interpolating " + bvar + " and writing to base."
@@ -60,11 +60,13 @@ def acab_epsg3413(args, nc_racmo, nc_base, base):
         racmo_data = np.ma.masked_values(
             nc_racmo.variables[rvar][-1, :, :], 9.96921e36
         )
+        racmo_data *= 12  # Convert from (mm w.e. / mon) to (mm w.e. / year)
+
         data_min = racmo_data.min()
         data_max = racmo_data.max()
 
         racmo_to_base = scipy.interpolate.RectBivariateSpline(
-            racmo.y[::-1], racmo.x[:], racmo_data[::-1, :], kx=1, ky=1, s=0
+            racmo.y[:], racmo.x[:], racmo_data[:, :], kx=1, ky=1, s=0
         )  # regular 2d linear interp. but faster
         base_data = np.zeros(base.dims)
         for ii in range(0, base.nx):
@@ -87,11 +89,19 @@ def acab_epsg3413(args, nc_racmo, nc_base, base):
         copy_atts_bad_fill(nc_racmo.variables[rvar], base.var, MISSING_VAL)
         base.var.long_name = "Water Equivalent Surface Mass Balance"
         base.var.standard_name = "land_ice_lwe_surface_specific_mass_balance"
+        if "std" in bvar:
+            base.var.long_name += " standard deviation"
+            base.var.standard_name += " standard_deviation"
         base.var.units = "mm year-1"
         base.var.grid_mapping = "epsg_3413"
         base.var.coordinates = "lon lat"
-        base.var.source = "Jan Lenaerts"
-        base.var.reference = "Noel, B., van de Berg, W. J., Machguth, H., Lhermitte, S., Howat, I., Fettweis, X., and van den Broeke, M. R.: A daily, 1 km resolution data set of downscaled Greenland ice sheet surface mass balance (1958--2015), The Cryosphere, 10, 2361-2377, doi:10.5194/tc-10-2361-2016, 2016."
+        base.var.source = "Brice Nöel"
+        base.var.reference = (
+            "Noël, Brice and van de Berg, Willem Jan and Lhermitte, Stef and "
+            "van den Broeke, Michiel R. 2019: Rapid ablation zone expansion "
+            "amplifies north Greenland mass loss. Science Advances."
+            "doi:10.1126/sciadv.aaw0123"
+        )
 
 
 def acab_bamber(args, nc_racmo2p3, nc_base, base):
@@ -117,7 +127,7 @@ def acab_bamber(args, nc_racmo2p3, nc_base, base):
     x2d, y2d = np.meshgrid(x_in, y_in)
 
     proj_greenland = projections.greenland()
-    base_vars = {"smb": "SMB_rec"}
+    base_vars = {"smb": "SMB_mean", "smb_std": "SMB_stdv"}
 
     x_t, y_t = pyproj.transform(
         proj_greenland[0], proj_greenland[1], x=x2d.flatten(), y=y2d.flatten(),
@@ -135,6 +145,7 @@ def acab_bamber(args, nc_racmo2p3, nc_base, base):
             args, f"   Interpolating {rvar} and writing {bvar} to base."
         )
         z_in = nc_racmo2p3.variables[rvar][0, ...]
+        z_in *= 12  # Convert from (mm w.e. / mon) to (mm w.e. / year)
 
         x_t, y_t, z_t = pyproj.transform(
             proj_greenland[0],
@@ -153,25 +164,28 @@ def acab_bamber(args, nc_racmo2p3, nc_base, base):
 
         # If there are missing values from the original dataset, update the
         # fill value to something easy
-        z_interp[
-            np.where(
-                z_interp == nc_racmo2p3.variables[rvar].getncattr("_FillValue")
-            )
-        ] = MISSING_VAL
+        try:
+            _mvin = nc_racmo2p3.variables[rvar].getncattr("_FillValue")
+        except AttributeError:
+            _mvin = MISSING_VAL
+        z_interp[np.where(z_interp == _mvin)] = MISSING_VAL
+
         copy_atts_bad_fill(nc_racmo2p3.variables[rvar], base.var, MISSING_VAL)
 
         base.var.long_name = "Water Equivalent Surface Mass Balance"
         base.var.standard_name = "land_ice_lwe_surface_specific_mass_balance"
+        if "std" in bvar:
+            base.var.long_name += " standard deviation"
+            base.var.standard_name += " standard_deviation"
+
         base.var.units = "mm year-1"
         base.var.grid_mapping = "mcb"
         base.var.coordinates = "lon lat"
-        base.var.source = "Jan Lenaerts"
+        base.var.source = "Brice Nöel"
         base.var.reference = (
-            "Noel, B., van de Berg, W. J., Machguth, H., "
-            "Lhermitte, S., Howat, I., Fettweis, X., and van den "
-            "Broeke, M. R.: A daily, 1 km resolution data set of "
-            "downscaled Greenland ice sheet surface mass balance "
-            "(1958--2015), The Cryosphere, 10, 2361-2377, "
-            "doi:10.5194/tc-10-2361-2016, 2016."
+            "Noël, Brice and van de Berg, Willem Jan and Lhermitte, Stef and "
+            "van den Broeke, Michiel R. 2019: Rapid ablation zone expansion "
+            "amplifies north Greenland mass loss. Science Advances."
+            "doi:10.1126/sciadv.aaw0123"
         )
         base.var.comments = "Nearest neighbour remapping"
