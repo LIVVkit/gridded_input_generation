@@ -250,7 +250,10 @@ def dhdt_all(args, nc_csatho, nc_base, base, proj_out=None):
     )
     base.dhdt.standard_name = "tendency_of_land_ice_thickness"
     base.dhdt.units = "m year-1"
-    base.dhdt.grid_mapping = "mcb"
+    if proj_out is not None:
+        base.dhdt.grid_mapping = "epsg_3413"
+    else:
+        base.dhdt.grid_mapping = "mcb"
     base.dhdt.coordinates = "lon lat"
     base.dhdt.source = (
         "https://arcticdata.io/catalog/view/doi:10.5065/D6HM56KS"
