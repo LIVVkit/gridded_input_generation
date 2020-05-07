@@ -35,7 +35,7 @@ from build_antarctica import nn_interp
 from util import speak
 from util import projections
 
-DATA_PATH = "data"
+DATA_PATH = "/Volumes/data/piscees/gis"
 MISSING_VAL_INPUT = -2e9
 MISSING_VAL_OUT = np.float32(2e36)
 # DATA_VERSION = "MEASURES_annual_vel_mosaics_v01"
