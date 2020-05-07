@@ -82,7 +82,6 @@ def get_map_transform(dset, var):
         _map = dset[grid_map]
     except KeyError:
         grid_map = None
-
     if grid_map is not None:
         _map = dset[grid_map]
         params = {}
@@ -206,12 +205,23 @@ def plot_single(data, varname, title, skip=1, axes=None):
 
 def plot_sideby(ref, test, cmn_vars, out_dir, skip=1):
     """"Make side-by-side plot comparing reference to test."""
-    # proj = ccrs.NorthPolarStereo(central_longitude=0)
-    proj = ccrs.SouthPolarStereo(central_longitude=0)
 
     for var in sorted(cmn_vars):
         if "epsg" in var or "mcb" in var or "mapping" in var:
             continue
+
+        _diff = xr.Dataset({var: test[var] - ref[var]})
+        _gridmap = test[var].attrs.get("grid_mapping")
+        _diff[var] = _diff[var].assign_attrs({"grid_mapping": _gridmap})
+        _diff[_gridmap] = test[_gridmap]
+
+        _proj_lat = test[_gridmap].attrs.get(
+            "latitude_of_projection_origin", 90
+        )
+        if _proj_lat > 0:
+            proj = ccrs.NorthPolarStereo(central_longitude=0)
+        else:
+            proj = ccrs.SouthPolarStereo(central_longitude=0)
 
         fig = plt.figure(figsize=(13, 13))
         axes = [
@@ -219,11 +229,6 @@ def plot_sideby(ref, test, cmn_vars, out_dir, skip=1):
         ]
         # No transform for the last axis
         axes.append(fig.add_subplot(2, 2, 4))
-
-        _diff = xr.Dataset({var: test[var] - ref[var]})
-        _gridmap = test[var].attrs.get("grid_mapping")
-        _diff[var] = _diff[var].assign_attrs({"grid_mapping": _gridmap})
-        _diff[_gridmap] = test[_gridmap]
 
         print(f"Plot {var}")
         plot_single(ref, var, "Reference", skip, axes=axes[0])
@@ -329,14 +334,14 @@ def main():
         # Test Bamber grid
         ref_file = "complete/greenland_8km_2016_12_01.mcb.nc"
         # ref_file = "complete/greenland_8km_2020_03_04.mcb.nc"
-        test_file = "complete/greenland_8km_2020_03_09.mcb.nc"
+        test_file = "complete/greenland_8km_2020_04_21.mcb.nc"
         out_dir = "bamber_compare"
         log_out = "gis_bamber"
 
     elif args.island == "gis" and args.proj == "epsg3413":
         # Test EPSG:3413 grid
         ref_file = "complete/greenland_8km_2017_06_27.epsg3413.nc"
-        test_file = "complete/greenland_8km_2020_03_09.epsg3413.nc"
+        test_file = "complete/greenland_8km_2020_04_20.epsg3413.nc"
         out_dir = "epsg3413_compare"
         log_out = "gis_epsg"
 
