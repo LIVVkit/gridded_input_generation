@@ -273,6 +273,38 @@ input_config = {
             ),
         },
     },
+    "racmo2p3": {
+        "file": Path(
+            DATA_ROOT,
+            "RACMO2p3p1_ANT27_SMB_yearly_1979_2014",
+            "RACMO2.3p1_ANT27_SMB_mean_new_1979_2014.nc",
+        ),
+        "coord_file": Path(
+            DATA_ROOT,
+            "RACMO2p3p1_ANT27_SMB_yearly_1979_2014",
+            "RACMO2.3p1_ANT27_Height_lat_lon.nc",
+        ),
+        "load": ba.load_racmo2p3,
+        "vars": ["smb"],
+        "coords": {"y": "lat2d", "x": "lon2d"},
+        "meta": {
+            "smb": {
+                "long_name": "water equivalent surface mass balance",
+                "standard_name": (
+                    "land_ice_lwe_surface_specific_mass_balance"
+                ),
+                "units": "m year-1",
+                "grid_mapping": "epsg_3031",
+                "coordinates": "lon lat",
+                "comments": (""),
+                "referenmce": (
+                    "van den Broeke, Michiel R (2019): RACMO2.3p1 annual surface "
+                    "mass balance Antarctica (1979-2014). PANGAEA, "
+                    "https://doi.org/10.1594/PANGAEA.896940"
+                ),
+            },
+        },
+    },
     "topg": {
         "vars": ["topg"],
         "meta": {
@@ -473,6 +505,7 @@ output_cfg = {"coords": {"x": "x1", "y": "y1"}}
 # Map required output variable to a dataset and input variable
 # (OUTPUT VARIABLE, INPUT DATASET, INPUT VARIABLE NAME)
 inout_map = [
+    ("smb", "racmo2p3", "smb"),
     ("dhdt", "cryosat", "dzdt"),
     ("thk", "bedmachine", "thickness"),
     ("thkerr", "bedmachine", "errbed"),
@@ -489,7 +522,7 @@ inout_map = [
 
 # Add metadata for extant variables (copied from the original netCDF file)
 ext_vars = [
-    ("smb", "acab"),
+    # ("smb", "acab"),
     ("smb", "artm"),
     # ("topg", "topg"),
     # ("veloc", "verr"),

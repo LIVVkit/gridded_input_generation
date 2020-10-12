@@ -325,8 +325,9 @@ def main():
     if args.island == "ais" and args.proj == "epsg3031":
         # Test Antarctica
         # ref_file = "ncs/antarctica_8km_2014_01_14.nc"
-        ref_file = "ncs/antarctica_1km_2017_05_03.nc"
-        test_file = "ncs/antarctica_1km_2020_03_19.nc"
+        # ref_file = "ncs/antarctica_1km_2017_05_03.nc"
+        ref_file = "ncs/antarctica_8km_2020_03_19.nc"
+        test_file = "ncs/antarctica_8km_2020_10_12.nc"
         out_dir = "ais_compare"
         log_out = "ais"
 

@@ -121,6 +121,27 @@ def load_hf(in_file, **kwargs):
     return xr.Dataset({in_var: hf_grid})
 
 
+def load_racmo2p3(in_file, **kwargs):
+    """Load RACMO 2.3 data."""
+    cfg = kwargs["cfg"]
+    in_var = kwargs["in_var"]
+
+    in_data = xr.open_dataset(in_file)
+    coords = xr.open_dataset(cfg["coord_file"])
+    dims = ("y", "x")
+    in_coord_vars = cfg["coords"]
+    in_dims = [in_coord_vars[dim] for dim in dims]
+
+    combo_data = xr.Dataset(
+        {in_var: (dims, in_data[in_var].values)},
+        coords={
+            in_dims[0]: (dims, coords[in_dims[0]].values),
+            in_dims[1]: (dims, coords[in_dims[1]].values),
+        },
+    )
+    return combo_data
+
+
 def build_base_greenland(
     out_file, epsg_config, mapping_name, coords, d_meters=1000
 ):
@@ -386,7 +407,7 @@ def output_setup(
         nco.ncks(
             input=str(input_file),
             output=str(output_file),
-            options=["-x", "-v", "acab_alb,artm_alb,dzdt,verr"],
+            options=["-x", "-v", "acab,acab_alb,artm_alb,dzdt,verr"],
         )
         ds_base = xr.open_dataset(output_file).load()
     else:
