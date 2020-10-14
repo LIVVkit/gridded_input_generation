@@ -296,7 +296,10 @@ input_config = {
                 "units": "m year-1",
                 "grid_mapping": "epsg_3031",
                 "coordinates": "lon lat",
-                "comments": (""),
+                "comments": (
+                    "Annual (1979-2014) gridded surface mass balance data for Antarctic"
+                    "ice sheet from the regional atmospheric climate model RACMO2.3, version p1"
+                ),
                 "referenmce": (
                     "van den Broeke, Michiel R (2019): RACMO2.3p1 annual surface "
                     "mass balance Antarctica (1979-2014). PANGAEA, "

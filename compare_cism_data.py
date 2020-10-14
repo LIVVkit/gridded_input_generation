@@ -327,7 +327,7 @@ def main():
         # ref_file = "ncs/antarctica_8km_2014_01_14.nc"
         # ref_file = "ncs/antarctica_1km_2017_05_03.nc"
         ref_file = "ncs/antarctica_8km_2020_03_19.nc"
-        test_file = "ncs/antarctica_8km_2020_10_12.nc"
+        test_file = "ncs/antarctica_8km_2020_10_13.nc"
         out_dir = "ais_compare"
         log_out = "ais"
 

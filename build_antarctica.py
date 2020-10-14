@@ -125,19 +125,21 @@ def load_racmo2p3(in_file, **kwargs):
     """Load RACMO 2.3 data."""
     cfg = kwargs["cfg"]
     in_var = kwargs["in_var"]
+    proj_out = projections.antarctica()[0]
 
     in_data = xr.open_dataset(in_file)
     coords = xr.open_dataset(cfg["coord_file"])
     dims = ("y", "x")
-    in_coord_vars = cfg["coords"]
-    in_dims = [in_coord_vars[dim] for dim in dims]
+    in_dims = [cfg["coords"][dim] for dim in dims]
+
+    # Get the X and Y cartesian coordinates of input lat / lon data from RACMO2.3 dataset
+    x_cart, y_cart = proj_out(
+        coords[cfg["coords"]["x"]].values, coords[cfg["coords"]["y"]].values
+    )
 
     combo_data = xr.Dataset(
         {in_var: (dims, in_data[in_var].values)},
-        coords={
-            in_dims[0]: (dims, coords[in_dims[0]].values),
-            in_dims[1]: (dims, coords[in_dims[1]].values),
-        },
+        coords={in_dims[0]: (dims, y_cart), in_dims[1]: (dims, x_cart),},
     )
     return combo_data
 
