@@ -25,7 +25,11 @@ DATA_ROOT = Path("data")
 
 def xr_load(in_file, **kwargs):
     """Load netCDF data."""
-    return xr.open_dataset(in_file)
+    try:
+        _data = xr.open_dataset(in_file)
+    except ValueError:
+        _data = xr.open_dataset(in_file, decode_times=False)
+    return _data
 
 
 def np_load(in_file, **kwargs):
@@ -128,13 +132,12 @@ def load_racmo2p3(in_file, **kwargs):
     proj_out = projections.antarctica()[0]
 
     in_data = xr.open_dataset(in_file)
-    coords = xr.open_dataset(cfg["coord_file"])
     dims = ("y", "x")
     in_dims = [cfg["coords"][dim] for dim in dims]
 
     # Get the X and Y cartesian coordinates of input lat / lon data from RACMO2.3 dataset
     x_cart, y_cart = proj_out(
-        coords[cfg["coords"]["x"]].values, coords[cfg["coords"]["y"]].values
+        in_data[cfg["coords"]["x"]].values, in_data[cfg["coords"]["y"]].values,
     )
 
     combo_data = xr.Dataset(
@@ -305,19 +308,15 @@ def interp(in_cfg, in_var, out_cfg, output):
     if isinstance(in_data, xr.Dataset):
         nx_in = in_data[in_cfg["coords"]["x"]].shape[0]
         ny_in = in_data[in_cfg["coords"]["y"]].shape[0]
+
         if nx_in >= xout.shape[0] and ny_in >= yout.shape[0]:
-            # Use nearest neighbour when input data is higher res than output
+            # Use multiple neighbours when input data is higher res than output
             nbrs = 5
         else:
-            # Otherwise use linear
+            # Otherwise use only nearest
             nbrs = 1
 
         print(f"    using {nbrs} neighbour(s)")
-        # intp_data = in_data[in_var].interp(
-        #     **{in_cfg["coords"]["x"]: xout, in_cfg["coords"]["y"]: yout},
-        #     method=method,
-        # )
-
         intp_data = nn_interp(
             in_data[in_var][in_cfg["coords"]["x"]].values,
             in_data[in_var][in_cfg["coords"]["y"]].values,
@@ -326,6 +325,7 @@ def interp(in_cfg, in_var, out_cfg, output):
             in_data[in_var].values,
             nbrs,
         )
+
         intp_data = xr.DataArray(
             intp_data,
             dims=[out_cfg["coords"]["y"], out_cfg["coords"]["x"]],
@@ -334,6 +334,25 @@ def interp(in_cfg, in_var, out_cfg, output):
                 out_cfg["coords"]["x"]: xout,
             },
         )
+
+        # Save for later ... linear interpolation
+        # print("     Do Linear Interp")
+        # in_grid = np.vstack(
+        #     [
+        #         in_data[in_var][in_cfg["coords"]["x"]].values.ravel(),
+        #         in_data[in_var][in_cfg["coords"]["y"]].values.ravel(),
+        #     ]
+        # )
+
+        # out_grid = np.meshgrid(xout.values, yout.values, indexing="ij")
+        # intp_data = scipy.interpolate.griddata(
+        #     in_grid.T,
+        #     in_data[in_var].values.ravel(),
+        #     tuple(out_grid),
+        #     method="linear",
+        # )
+        # lllllllllll lllllllllll lllllllllll lllllllllll
+
         # for coord in ["y", "x"]:
         #     if in_cfg["coords"][coord] != out_cfg["coords"][coord]:
         #         # Drop original coordinate copy from the output DataArray
@@ -350,6 +369,7 @@ def interp(in_cfg, in_var, out_cfg, output):
         #         xout.values,
         #         yout.values,
         #     )
+
     else:
         # out_grid = np.meshgrid(xout, yout, indexing="ij")
         # intp_data = scipy.interpolate.griddata(
@@ -411,7 +431,10 @@ def output_setup(
             output=str(output_file),
             options=["-x", "-v", "acab,acab_alb,artm_alb,dzdt,verr"],
         )
-        ds_base = xr.open_dataset(output_file).load()
+        try:
+            ds_base = xr.open_dataset(output_file).load()
+        except ValueError:
+            ds_base = xr.open_dataset(output_file, decode_times=False).load()
     else:
         # island == "greenland"
         config_file = Path("data", out_proj, f"{out_proj}grid.json")
@@ -602,4 +625,4 @@ def main(island="antarctica", resolution=1, proj_opt=None):
 
 
 if __name__ == "__main__":
-    main("antarctica", proj_opt=None)
+    main("antarctica", resolution=1, proj_opt=None)

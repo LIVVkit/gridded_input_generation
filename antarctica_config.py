@@ -15,6 +15,11 @@ input_config = {
         "vars": ["acab_alb", "artm_alb", "dzdt"],
         "coords": {"x": "x1", "y": "y1"},
     },
+    "8km_in": {
+        "file": Path("ncs", "antarctica_8km_2020_03_19.nc"),
+        "vars": ["acab_alb", "artm_alb", "dzdt"],
+        "coords": {"x": "x1", "y": "y1"},
+    },
     # Rignot Subshelf Melt rates file
     "rignot_subshelf": {
         "file": Path(
@@ -122,7 +127,7 @@ input_config = {
                 "doi:10.1038/s41561-019-0510-8"
             ),
             "comments": (
-                "Obtained from NSIDC: https://nsidc.org/nsidc-0756. "
+                "Obtained from NSIDC: https://doi.org/10.5067/E1QL9HFQ7A8M "
                 "Resampled from 500m grid using Nearest Neighbor -> 1km"
             ),
         },
@@ -276,34 +281,29 @@ input_config = {
     "racmo2p3": {
         "file": Path(
             DATA_ROOT,
-            "RACMO2p3p1_ANT27_SMB_yearly_1979_2014",
-            "RACMO2.3p1_ANT27_SMB_mean_new_1979_2014.nc",
-        ),
-        "coord_file": Path(
-            DATA_ROOT,
-            "RACMO2p3p1_ANT27_SMB_yearly_1979_2014",
-            "RACMO2.3p1_ANT27_Height_lat_lon.nc",
+            "RACMO2.3p2_ANT27_SMB_yearly_1979_2014",
+            "RACMO2.3p2_ANT27_smb_mean_1979_2016.nc",
         ),
         "load": ba.load_racmo2p3,
         "vars": ["smb"],
-        "coords": {"y": "lat2d", "x": "lon2d"},
+        "coords": {"y": "lat", "x": "lon"},
         "meta": {
             "smb": {
                 "long_name": "water equivalent surface mass balance",
                 "standard_name": (
                     "land_ice_lwe_surface_specific_mass_balance"
                 ),
-                "units": "m year-1",
+                "units": "mm w.e. year-1",
                 "grid_mapping": "epsg_3031",
                 "coordinates": "lon lat",
                 "comments": (
-                    "Annual (1979-2014) gridded surface mass balance data for Antarctic"
-                    "ice sheet from the regional atmospheric climate model RACMO2.3, version p1"
+                    "Annual mean (1979-2016) gridded surface mass balance data for Antarctic"
+                    "ice sheet from the regional atmospheric climate model RACMO2.3p2"
                 ),
-                "referenmce": (
-                    "van den Broeke, Michiel R (2019): RACMO2.3p1 annual surface "
-                    "mass balance Antarctica (1979-2014). PANGAEA, "
-                    "https://doi.org/10.1594/PANGAEA.896940"
+                "reference": (
+                    "van Wessem, J. M., et al.: Modelling the climate and surface mass balance "
+                    "of polar ice sheets using RACMO2 – Part 2: Antarctica (1979–2016), "
+                    "The Cryosphere, 12, 1479–1498, https://doi.org/10.5194/tc-12-1479-2018, 2018."
                 ),
             },
         },
